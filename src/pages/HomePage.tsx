@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ProductCard } from '@/components/features/ProductCard';
 import { CategoryFilter } from '@/components/layout/CategoryFilter';
 import { OrderForm } from '@/components/forms/OrderForm';
@@ -11,21 +11,28 @@ export function HomePage() {
   const [products, setProducts] = useState<Product[]>(storage.getProducts());
 
   // Real-time sync: Refresh products to sync with admin changes (works for published sites too)
+  const productsRef = useRef<Product[]>(products);
+  
+  useEffect(() => {
+    productsRef.current = products;
+  }, [products]);
+  
   useEffect(() => {
     // Immediate load
     setProducts(storage.getProducts());
     
-    // Poll for changes every 2 seconds
+    // Poll for changes every 1.5 seconds for real-time updates
     const interval = setInterval(() => {
       const updatedProducts = storage.getProducts();
-      // Only update if products have changed to prevent unnecessary re-renders
-      if (JSON.stringify(updatedProducts) !== JSON.stringify(products)) {
+      // Only update if products have actually changed
+      if (JSON.stringify(updatedProducts) !== JSON.stringify(productsRef.current)) {
         setProducts(updatedProducts);
+        console.log('✅ Products synced from admin changes');
       }
-    }, 2000);
+    }, 1500);
 
     return () => clearInterval(interval);
-  }, [products]);
+  }, []); // Empty dependency array - run once on mount
 
   const filteredProducts = selectedCategory === 'all'
     ? products

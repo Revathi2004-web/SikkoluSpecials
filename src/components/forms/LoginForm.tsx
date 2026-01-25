@@ -76,11 +76,14 @@ export function LoginForm({ type, onClose }: LoginFormProps) {
       const users = storage.getUsers();
       const user = users.find(u => u.email === formData.email);
 
-      if (user) {
-        setCurrentUser(user);
-        toast({ title: `Welcome back, ${user.name}!` });
-        onClose();
-      } else if (isSignup) {
+      if (isSignup) {
+        // Signup flow
+        if (user) {
+          toast({ title: 'Email already registered. Please login instead.', variant: 'destructive' });
+          setIsSignup(false);
+          return;
+        }
+        
         const newUser: User = {
           id: Date.now().toString(),
           name: formData.name,
@@ -90,10 +93,22 @@ export function LoginForm({ type, onClose }: LoginFormProps) {
         };
         storage.addUser(newUser);
         setCurrentUser(newUser);
-        toast({ title: 'Account created successfully!' });
+        toast({ title: `Welcome ${formData.name}! Account created successfully! 🎉` });
         onClose();
       } else {
-        toast({ title: 'User not found. Please sign up.', variant: 'destructive' });
+        // Login flow
+        if (user) {
+          setCurrentUser(user);
+          toast({ title: `Welcome back, ${user.name}! 👋` });
+          onClose();
+        } else {
+          toast({ 
+            title: 'Email not found', 
+            description: 'Please sign up to create an account.',
+            variant: 'destructive' 
+          });
+          setIsSignup(true);
+        }
       }
     }
   };
