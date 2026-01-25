@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button';
 import { useCartStore } from '@/stores/cartStore';
 import { useState } from 'react';
 import { OrderForm } from '@/components/forms/OrderForm';
-import { Product } from '@/types';
 
 interface CartProps {
   onClose: () => void;
@@ -11,10 +10,16 @@ interface CartProps {
 
 export function Cart({ onClose }: CartProps) {
   const { items, removeFromCart, updateQuantity, getTotalPrice, clearCart } = useCartStore();
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [showCheckout, setShowCheckout] = useState(false);
 
-  const handleCheckout = (product: Product) => {
-    setSelectedProduct(product);
+  const handleCheckout = () => {
+    setShowCheckout(true);
+  };
+
+  const handleCheckoutSuccess = () => {
+    clearCart();
+    setShowCheckout(false);
+    onClose();
   };
 
   if (items.length === 0) {
@@ -102,7 +107,7 @@ export function Cart({ onClose }: CartProps) {
               <Button variant="outline" onClick={clearCart}>
                 Clear Cart
               </Button>
-              <Button onClick={() => handleCheckout(items[0].product)}>
+              <Button onClick={handleCheckout}>
                 Checkout ({items.length} items)
               </Button>
             </div>
@@ -110,10 +115,11 @@ export function Cart({ onClose }: CartProps) {
         </div>
       </div>
 
-      {selectedProduct && (
+      {showCheckout && (
         <OrderForm
-          product={selectedProduct}
-          onClose={() => setSelectedProduct(null)}
+          cartItems={items}
+          onClose={() => setShowCheckout(false)}
+          onSuccess={handleCheckoutSuccess}
         />
       )}
     </>

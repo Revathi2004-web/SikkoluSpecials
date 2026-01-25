@@ -6,15 +6,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Product, Order } from '@/types';
+import { CartItem } from '@/stores/cartStore';
 import { storage } from '@/lib/storage';
 import { useToast } from '@/hooks/use-toast';
 
 interface OrderFormProps {
-  product: Product;
+  product?: Product;
+  cartItems?: CartItem[];
   onClose: () => void;
+  onSuccess?: () => void;
 }
 
-export function OrderForm({ product, onClose }: OrderFormProps) {
+export function OrderForm({ product, cartItems, onClose, onSuccess }: OrderFormProps) {
   const { toast } = useToast();
   const [formData, setFormData] = useState({
     customerName: '',
@@ -31,23 +34,54 @@ export function OrderForm({ product, onClose }: OrderFormProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    const order: Order = {
-      id: Date.now().toString(),
-      productId: product.id,
-      productName: product.name,
-      productPrice: product.price,
-      ...formData,
-      orderDate: new Date().toISOString(),
-      status: 'pending',
-    };
-
-    storage.addOrder(order);
+    // Handle cart checkout (multiple items)
+    if (cartItems && cartItems.length > 0) {
+      cartItems.forEach((item, index) => {
+        const order: Order = {
+          id: (Date.now() + index).toString(),
+          productId: item.product.id,
+          productName: item.product.name,
+          productPrice: item.product.price,
+          customerName: formData.customerName,
+          phone: formData.phone,
+          email: formData.email,
+          address: formData.address,
+          city: formData.city,
+          state: formData.state,
+          pincode: formData.pincode,
+          quantity: item.quantity,
+          notes: formData.notes,
+          orderDate: new Date().toISOString(),
+          status: 'pending',
+        };
+        storage.addOrder(order);
+      });
+      
+      toast({
+        title: `${cartItems.length} Orders Placed Successfully! 🎉`,
+        description: 'Admin will contact you soon for confirmation.',
+      });
+    } 
+    // Handle single product order
+    else if (product) {
+      const order: Order = {
+        id: Date.now().toString(),
+        productId: product.id,
+        productName: product.name,
+        productPrice: product.price,
+        ...formData,
+        orderDate: new Date().toISOString(),
+        status: 'pending',
+      };
+      storage.addOrder(order);
+      
+      toast({
+        title: 'Order Placed Successfully! 🎉',
+        description: 'Admin will contact you soon for confirmation.',
+      });
+    }
     
-    toast({
-      title: 'Order Placed Successfully! 🎉',
-      description: 'Admin will contact you soon for confirmation.',
-    });
-    
+    if (onSuccess) onSuccess();
     onClose();
   };
 
@@ -64,14 +98,31 @@ export function OrderForm({ product, onClose }: OrderFormProps) {
         <div className="p-6">
           <ContactNumbers />
           
-          <div className="bg-primary/5 p-4 rounded-lg my-6 flex gap-4">
-            <img src={product.image} alt={product.name} className="w-20 h-20 object-cover rounded" />
-            <div>
-              <h3 className="font-semibold">{product.name}</h3>
-              <p className="text-sm text-muted-foreground mb-1">{product.description}</p>
-              <span className="text-lg font-bold text-primary">₹{product.price}</span>
+          {/* Order Summary */}
+          {cartItems && cartItems.length > 0 ? (
+            <div className="bg-primary/5 p-4 rounded-lg my-6 space-y-3">
+              <h3 className="font-semibold text-lg mb-3">Order Summary ({cartItems.length} items)</h3>
+              {cartItems.map((item) => (
+                <div key={item.product.id} className="flex gap-3 pb-3 border-b last:border-0">
+                  <img src={item.product.image} alt={item.product.name} className="w-16 h-16 object-cover rounded" />
+                  <div className="flex-1">
+                    <h4 className="font-medium text-sm">{item.product.name}</h4>
+                    <p className="text-xs text-muted-foreground">₹{item.product.price} × {item.quantity}</p>
+                  </div>
+                  <span className="font-bold text-primary">₹{item.product.price * item.quantity}</span>
+                </div>
+              ))}
             </div>
-          </div>
+          ) : product ? (
+            <div className="bg-primary/5 p-4 rounded-lg my-6 flex gap-4">
+              <img src={product.image} alt={product.name} className="w-20 h-20 object-cover rounded" />
+              <div>
+                <h3 className="font-semibold">{product.name}</h3>
+                <p className="text-sm text-muted-foreground mb-1">{product.description}</p>
+                <span className="text-lg font-bold text-primary">₹{product.price}</span>
+              </div>
+            </div>
+          ) : null}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid md:grid-cols-2 gap-4">
@@ -147,17 +198,20 @@ export function OrderForm({ product, onClose }: OrderFormProps) {
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="quantity">Quantity *</Label>
-              <Input
-                id="quantity"
-                type="number"
-                min="1"
-                required
-                value={formData.quantity}
-                onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) })}
-              />
-            </div>
+            {/* Only show quantity field for single product orders */}
+            {!cartItems && product && (
+              <div>
+                <Label htmlFor="quantity">Quantity *</Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  min="1"
+                  required
+                  value={formData.quantity}
+                  onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) })}
+                />
+              </div>
+            )}
 
             <div>
               <Label htmlFor="notes">Special Instructions</Label>
@@ -171,18 +225,35 @@ export function OrderForm({ product, onClose }: OrderFormProps) {
             </div>
 
             <div className="bg-muted p-4 rounded-lg">
-              <div className="flex justify-between text-sm mb-2">
-                <span>Price per item:</span>
-                <span>₹{product.price}</span>
-              </div>
-              <div className="flex justify-between text-sm mb-2">
-                <span>Quantity:</span>
-                <span>{formData.quantity}</span>
-              </div>
-              <div className="border-t pt-2 flex justify-between font-bold text-lg">
-                <span>Total Amount:</span>
-                <span className="text-primary">₹{product.price * formData.quantity}</span>
-              </div>
+              {cartItems && cartItems.length > 0 ? (
+                <>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span>Total Items:</span>
+                    <span>{cartItems.reduce((sum, item) => sum + item.quantity, 0)}</span>
+                  </div>
+                  <div className="border-t pt-2 flex justify-between font-bold text-lg">
+                    <span>Total Amount:</span>
+                    <span className="text-primary">
+                      ₹{cartItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0)}
+                    </span>
+                  </div>
+                </>
+              ) : product ? (
+                <>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span>Price per item:</span>
+                    <span>₹{product.price}</span>
+                  </div>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span>Quantity:</span>
+                    <span>{formData.quantity}</span>
+                  </div>
+                  <div className="border-t pt-2 flex justify-between font-bold text-lg">
+                    <span>Total Amount:</span>
+                    <span className="text-primary">₹{product.price * formData.quantity}</span>
+                  </div>
+                </>
+              ) : null}
             </div>
 
             <Button type="submit" className="w-full" size="lg">
