@@ -4,6 +4,7 @@ import { HomePage } from '@/pages/HomePage';
 import { AdminDashboard } from '@/pages/AdminDashboard';
 import { LoginPortal } from '@/pages/LoginPortal';
 import { LoginForm } from '@/components/forms/LoginForm';
+import { Cart } from '@/components/features/Cart';
 import { useAuthStore } from '@/stores/authStore';
 import { Toaster } from '@/components/ui/toaster';
 
@@ -11,6 +12,7 @@ export default function App() {
   const { currentAdmin, currentUser } = useAuthStore();
   const [showUserLogin, setShowUserLogin] = useState(false);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [showCart, setShowCart] = useState(false);
 
   // Show login portal if no user is logged in
   if (!currentAdmin && !currentUser) {
@@ -39,6 +41,7 @@ export default function App() {
       <Header
         onUserLogin={() => setShowUserLogin(true)}
         onAdminLogin={() => setShowAdminLogin(true)}
+        onCartClick={() => setShowCart(true)}
       />
       
       {currentAdmin ? <AdminDashboard /> : <HomePage />}
@@ -50,6 +53,8 @@ export default function App() {
       {showAdminLogin && (
         <LoginForm type="admin" onClose={() => setShowAdminLogin(false)} />
       )}
+
+      {showCart && <Cart onClose={() => setShowCart(false)} />}
 
       <Toaster />
     </div>

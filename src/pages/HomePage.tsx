@@ -10,14 +10,22 @@ export function HomePage() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [products, setProducts] = useState<Product[]>(storage.getProducts());
 
-  // Refresh products every second to sync with admin changes
+  // Real-time sync: Refresh products to sync with admin changes (works for published sites too)
   useEffect(() => {
+    // Immediate load
+    setProducts(storage.getProducts());
+    
+    // Poll for changes every 2 seconds
     const interval = setInterval(() => {
-      setProducts(storage.getProducts());
-    }, 1000);
+      const updatedProducts = storage.getProducts();
+      // Only update if products have changed to prevent unnecessary re-renders
+      if (JSON.stringify(updatedProducts) !== JSON.stringify(products)) {
+        setProducts(updatedProducts);
+      }
+    }, 2000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [products]);
 
   const filteredProducts = selectedCategory === 'all'
     ? products
@@ -64,7 +72,7 @@ export function HomePage() {
             No products found in this category
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
             {filteredProducts.map((product) => (
               <ProductCard
                 key={product.id}
