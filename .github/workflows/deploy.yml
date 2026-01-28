@@ -1,7 +1,7 @@
 name: Build and Deploy
 on:
   push:
-    branches: [main] # మీ మెయిన్ బ్రాంచ్ పేరు 'master' అయితే ఇక్కడ master అని మార్చండి
+    branches: [main]
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -9,12 +9,16 @@ jobs:
       - name: Checkout 🛎️
         uses: actions/checkout@v4
 
-      - name: Install and Build 🔧
-        run: |
-          npm install
-          npm run build
+      - name: Setup Bun 🚀
+        uses: oven-sh/setup-bun@v1
+
+      - name: Install Dependencies 🔧
+        run: bun install
+
+      - name: Build 🏗️
+        run: bun run build
 
       - name: Deploy 🚀
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: build # మీ ప్రాజెక్ట్ Vite అయితే ఇక్కడ 'dist' అని ఇవ్వండి
+          folder: dist # OnSpace AI ప్రాజెక్ట్స్ కి సాధారణంగా ఇది 'dist' అని ఉండాలి
