@@ -1,4 +1,4 @@
-import { ShoppingCart, ShoppingBag } from 'lucide-react';
+import { ShoppingCart, ShoppingBag, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Product } from '@/types';
 import { useCartStore } from '@/stores/cartStore';
@@ -7,9 +7,10 @@ import { useToast } from '@/hooks/use-toast';
 interface ProductCardProps {
   product: Product;
   onBuyNow: (product: Product) => void;
+  onViewDetails?: (product: Product) => void;
 }
 
-export function ProductCard({ product, onBuyNow }: ProductCardProps) {
+export function ProductCard({ product, onBuyNow, onViewDetails }: ProductCardProps) {
   const { addToCart } = useCartStore();
   const { toast } = useToast();
 
@@ -23,13 +24,22 @@ export function ProductCard({ product, onBuyNow }: ProductCardProps) {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow group">
-      <div className="aspect-square overflow-hidden">
+    <div 
+      className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow group cursor-pointer"
+      onClick={() => onViewDetails?.(product)}
+    >
+      <div className="aspect-square overflow-hidden relative">
         <img
           src={product.image}
           alt={product.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
         />
+        {product.rating && (
+          <div className="absolute top-2 right-2 bg-white/95 backdrop-blur px-2 py-1 rounded-full flex items-center gap-1 shadow-md">
+            <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+            <span className="text-xs font-medium">{product.rating}</span>
+          </div>
+        )}
       </div>
       <div className="p-3 md:p-4 flex flex-col">
         <h3 className="font-semibold text-sm md:text-base mb-1 line-clamp-1">{product.name}</h3>
@@ -45,7 +55,10 @@ export function ProductCard({ product, onBuyNow }: ProductCardProps) {
           <Button 
             size="sm" 
             variant="outline"
-            onClick={handleAddToCart} 
+            onClick={(e) => {
+              e.stopPropagation();
+              handleAddToCart();
+            }} 
             className="w-full text-xs md:text-sm"
           >
             <ShoppingCart className="w-3 h-3 md:w-4 md:h-4 mr-1" />
@@ -53,7 +66,10 @@ export function ProductCard({ product, onBuyNow }: ProductCardProps) {
           </Button>
           <Button 
             size="sm" 
-            onClick={() => onBuyNow(product)} 
+            onClick={(e) => {
+              e.stopPropagation();
+              onBuyNow(product);
+            }} 
             className="w-full text-xs md:text-sm"
           >
             <ShoppingBag className="w-3 h-3 md:w-4 md:h-4 mr-1" />

@@ -1,11 +1,18 @@
-import { useState } from 'react';
-import { X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, QrCode, Building2 } from 'lucide-react';
 import { ContactNumbers } from '@/components/features/ContactNumbers';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Product, Order } from '@/types';
+import { Product, Order, PaymentInfo } from '@/types';
 import { CartItem } from '@/stores/cartStore';
 import { storage } from '@/lib/storage';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +26,17 @@ interface OrderFormProps {
 
 export function OrderForm({ product, cartItems, onClose, onSuccess }: OrderFormProps) {
   const { toast } = useToast();
+  const [paymentMethods, setPaymentMethods] = useState<PaymentInfo[]>([]);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('');
+
+  useEffect(() => {
+    const methods = storage.getPaymentInfo().filter(p => p.isActive);
+    setPaymentMethods(methods);
+    if (methods.length > 0) {
+      setSelectedPaymentMethod(methods[0].id);
+    }
+  }, []);
+
   const [formData, setFormData] = useState({
     customerName: '',
     phone: '',
@@ -31,8 +49,15 @@ export function OrderForm({ product, cartItems, onClose, onSuccess }: OrderFormP
     notes: '',
   });
 
+  const selectedPayment = paymentMethods.find(p => p.id === selectedPaymentMethod);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!selectedPaymentMethod) {
+      toast({ title: 'Please select a payment method', variant: 'destructive' });
+      return;
+    }
     
     // Handle cart checkout (multiple items)
     if (cartItems && cartItems.length > 0) {
@@ -97,6 +122,70 @@ export function OrderForm({ product, cartItems, onClose, onSuccess }: OrderFormP
 
         <div className="p-6">
           <ContactNumbers />
+
+          {/* Payment Method Selection */}
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 my-6">
+            <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+              <Building2 className="w-5 h-5" />
+              Select Payment Method
+            </h3>
+            <Select value={selectedPaymentMethod} onValueChange={setSelectedPaymentMethod}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose payment method" />
+              </SelectTrigger>
+              <SelectContent>
+                {paymentMethods.map((method) => (
+                  <SelectItem key={method.id} value={method.id}>
+                    {method.type === 'upi' ? '💳 UPI Payment' : '🏦 Bank Transfer'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Show payment details */}
+            {selectedPayment && (
+              <div className="mt-4 p-4 bg-white rounded border">
+                {selectedPayment.type === 'upi' ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <QrCode className="w-4 h-4" />
+                      UPI Payment Details
+                    </div>
+                    <div className="text-center">
+                      {selectedPayment.qrCode && (
+                        <img 
+                          src={selectedPayment.qrCode} 
+                          alt="UPI QR Code" 
+                          className="w-48 h-48 mx-auto border rounded-lg mb-2"
+                        />
+                      )}
+                      <p className="text-sm">UPI ID: <strong>{selectedPayment.upiId}</strong></p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Scan QR code or use UPI ID for payment
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2 font-medium mb-2">
+                      <Building2 className="w-4 h-4" />
+                      Bank Transfer Details
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <span className="text-muted-foreground">Bank Name:</span>
+                      <span className="font-medium">{selectedPayment.bankName}</span>
+                      <span className="text-muted-foreground">Account Number:</span>
+                      <span className="font-medium">{selectedPayment.accountNumber}</span>
+                      <span className="text-muted-foreground">IFSC Code:</span>
+                      <span className="font-medium">{selectedPayment.ifscCode}</span>
+                      <span className="text-muted-foreground">Account Holder:</span>
+                      <span className="font-medium">{selectedPayment.accountHolder}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           
           {/* Order Summary */}
           {cartItems && cartItems.length > 0 ? (

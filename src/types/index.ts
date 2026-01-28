@@ -6,6 +6,8 @@ export interface Product {
   image: string;
   description: string;
   createdAt: string;
+  rating?: number;
+  reviewCount?: number;
 }
 
 export interface Order {
@@ -40,6 +42,28 @@ export interface ContactNumber {
   label: string;
   number: string;
   isPrimary: boolean;
+}
+
+export interface Review {
+  id: string;
+  productId: string;
+  userId: string;
+  userName: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+}
+
+export interface PaymentInfo {
+  id: string;
+  type: 'upi' | 'bank';
+  upiId?: string;
+  qrCode?: string;
+  bankName?: string;
+  accountNumber?: string;
+  ifscCode?: string;
+  accountHolder?: string;
+  isActive: boolean;
 }
 
 export interface User {

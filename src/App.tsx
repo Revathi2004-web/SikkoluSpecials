@@ -5,6 +5,7 @@ import { AdminDashboard } from '@/pages/AdminDashboard';
 import { LoginPortal } from '@/pages/LoginPortal';
 import { LoginForm } from '@/components/forms/LoginForm';
 import { Cart } from '@/components/features/Cart';
+import { ChatBot } from '@/components/features/ChatBot';
 import { useAuthStore } from '@/stores/authStore';
 import { Toaster } from '@/components/ui/toaster';
 
@@ -45,6 +46,9 @@ export default function App() {
       />
       
       {currentAdmin ? <AdminDashboard /> : <HomePage />}
+
+      {/* Show chatbot only for users, not admins */}
+      {currentUser && <ChatBot />}
 
       {showUserLogin && (
         <LoginForm type="user" onClose={() => setShowUserLogin(false)} />

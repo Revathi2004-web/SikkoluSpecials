@@ -1,4 +1,4 @@
-import { Product, Order, Admin, User, ContactNumber } from '@/types';
+import { Product, Order, Admin, User, ContactNumber, Review, PaymentInfo } from '@/types';
 
 const STORAGE_KEYS = {
   PRODUCTS: 'sikkolu_products',
@@ -8,6 +8,8 @@ const STORAGE_KEYS = {
   CURRENT_USER: 'sikkolu_current_user',
   CURRENT_ADMIN: 'sikkolu_current_admin',
   CONTACT_NUMBERS: 'sikkolu_contact_numbers',
+  REVIEWS: 'sikkolu_reviews',
+  PAYMENT_INFO: 'sikkolu_payment_info',
 };
 
 // Initialize default data
@@ -104,6 +106,32 @@ const initializeDefaultData = () => {
       },
     ];
     localStorage.setItem(STORAGE_KEYS.CONTACT_NUMBERS, JSON.stringify(defaultContacts));
+  }
+
+  if (!localStorage.getItem(STORAGE_KEYS.REVIEWS)) {
+    localStorage.setItem(STORAGE_KEYS.REVIEWS, JSON.stringify([]));
+  }
+
+  if (!localStorage.getItem(STORAGE_KEYS.PAYMENT_INFO)) {
+    const defaultPayments: PaymentInfo[] = [
+      {
+        id: '1',
+        type: 'upi',
+        upiId: 'sikkolaspecials@upi',
+        qrCode: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2ZmZiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjE0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+VVBJIFFSIENvZGU8L3RleHQ+PC9zdmc+',
+        isActive: true,
+      },
+      {
+        id: '2',
+        type: 'bank',
+        bankName: 'State Bank of India',
+        accountNumber: '1234567890',
+        ifscCode: 'SBIN0001234',
+        accountHolder: 'Sikkolu Specials',
+        isActive: true,
+      },
+    ];
+    localStorage.setItem(STORAGE_KEYS.PAYMENT_INFO, JSON.stringify(defaultPayments));
   }
 };
 
@@ -241,5 +269,61 @@ export const storage = {
       c.id === contactId ? { ...c, ...updates } : c
     );
     storage.saveContactNumbers(contacts);
+  },
+
+  // Reviews
+  getReviews: (): Review[] => {
+    const data = localStorage.getItem(STORAGE_KEYS.REVIEWS);
+    return data ? JSON.parse(data) : [];
+  },
+  
+  saveReviews: (reviews: Review[]) => {
+    localStorage.setItem(STORAGE_KEYS.REVIEWS, JSON.stringify(reviews));
+  },
+  
+  addReview: (review: Review) => {
+    const reviews = storage.getReviews();
+    reviews.push(review);
+    storage.saveReviews(reviews);
+    
+    // Update product rating
+    const productReviews = reviews.filter(r => r.productId === review.productId);
+    const avgRating = productReviews.reduce((sum, r) => sum + r.rating, 0) / productReviews.length;
+    storage.updateProduct(review.productId, { 
+      rating: Math.round(avgRating * 10) / 10, 
+      reviewCount: productReviews.length 
+    });
+  },
+  
+  getProductReviews: (productId: string): Review[] => {
+    return storage.getReviews().filter(r => r.productId === productId);
+  },
+
+  // Payment Info
+  getPaymentInfo: (): PaymentInfo[] => {
+    const data = localStorage.getItem(STORAGE_KEYS.PAYMENT_INFO);
+    return data ? JSON.parse(data) : [];
+  },
+  
+  savePaymentInfo: (payments: PaymentInfo[]) => {
+    localStorage.setItem(STORAGE_KEYS.PAYMENT_INFO, JSON.stringify(payments));
+  },
+  
+  addPaymentInfo: (payment: PaymentInfo) => {
+    const payments = storage.getPaymentInfo();
+    payments.push(payment);
+    storage.savePaymentInfo(payments);
+  },
+  
+  updatePaymentInfo: (paymentId: string, updates: Partial<PaymentInfo>) => {
+    const payments = storage.getPaymentInfo().map(p => 
+      p.id === paymentId ? { ...p, ...updates } : p
+    );
+    storage.savePaymentInfo(payments);
+  },
+  
+  deletePaymentInfo: (paymentId: string) => {
+    const payments = storage.getPaymentInfo().filter(p => p.id !== paymentId);
+    storage.savePaymentInfo(payments);
   },
 };

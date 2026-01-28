@@ -2,12 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { ProductCard } from '@/components/features/ProductCard';
 import { CategoryFilter } from '@/components/layout/CategoryFilter';
 import { OrderForm } from '@/components/forms/OrderForm';
+import { ProductModal } from '@/components/features/ProductModal';
 import { storage } from '@/lib/storage';
 import { Product } from '@/types';
 
 export function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
   const [products, setProducts] = useState<Product[]>(storage.getProducts());
 
   // Real-time sync: Refresh products to sync with admin changes (works for published sites too)
@@ -85,11 +87,24 @@ export function HomePage() {
                 key={product.id}
                 product={product}
                 onBuyNow={setSelectedProduct}
+                onViewDetails={setViewingProduct}
               />
             ))}
           </div>
         )}
       </div>
+
+      {/* Product Details Modal */}
+      {viewingProduct && (
+        <ProductModal
+          product={viewingProduct}
+          onClose={() => setViewingProduct(null)}
+          onBuyNow={() => {
+            setSelectedProduct(viewingProduct);
+            setViewingProduct(null);
+          }}
+        />
+      )}
 
       {/* Order Form Modal */}
       {selectedProduct && (
