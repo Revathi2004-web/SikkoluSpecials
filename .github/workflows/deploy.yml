@@ -23,4 +23,5 @@ jobs:
       - name: Deploy 🚀
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: dist # OnSpace ప్రాజెక్ట్స్‌కి ఇది 'dist' అని ఉండాలి
+          folder: dist # ఒకవేళ మళ్ళీ ఫెయిల్ అయితే ఇక్కడ 'build' అని మార్చండి
+          branch: gh-pages
