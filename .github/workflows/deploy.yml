@@ -1,0 +1,20 @@
+name: Build and Deploy
+on:
+  push:
+    branches: [main] # మీ మెయిన్ బ్రాంచ్ పేరు 'master' అయితే ఇక్కడ master అని మార్చండి
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout 🛎️
+        uses: actions/checkout@v4
+
+      - name: Install and Build 🔧
+        run: |
+          npm install
+          npm run build
+
+      - name: Deploy 🚀
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: build # మీ ప్రాజెక్ట్ Vite అయితే ఇక్కడ 'dist' అని ఇవ్వండి
