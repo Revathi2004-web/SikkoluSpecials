@@ -1,42 +1,47 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ProductCard } from '@/components/features/ProductCard';
 import { CategoryFilter } from '@/components/layout/CategoryFilter';
 import { OrderForm } from '@/components/forms/OrderForm';
 import { ProductModal } from '@/components/features/ProductModal';
 import { Product } from '@/types';
-import { supabase } from '@/lib/supabaseClient'; // పైన మనం క్రియేట్ చేసిన ఫైల్ లింక్
+import { storage } from '@/lib/storage';
 
 export function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const previousProductsRef = useRef<string>('');
 
+  // Load products initially and filter by category
   useEffect(() => {
-    loadSupabaseProducts();
+    const allProducts = storage.getPublishedProducts();
+    const filtered = selectedCategory === 'all' 
+      ? allProducts 
+      : allProducts.filter(p => p.category === selectedCategory);
+    setProducts(filtered);
   }, [selectedCategory]);
 
-  const loadSupabaseProducts = async () => {
-    setLoading(true);
-    try {
-      // సుపాబేస్ నుండి డేటా ఫెచ్ చేయడం
-      let query = supabase.from('products').select('*');
+  // Real-time sync: Poll for product changes every 1.5 seconds
+  useEffect(() => {
+    const checkForUpdates = () => {
+      const currentProducts = storage.getPublishedProducts();
+      const currentSnapshot = JSON.stringify(currentProducts);
       
-      if (selectedCategory !== 'all') {
-        query = query.eq('category', selectedCategory);
+      if (previousProductsRef.current !== currentSnapshot) {
+        previousProductsRef.current = currentSnapshot;
+        const filtered = selectedCategory === 'all' 
+          ? currentProducts 
+          : currentProducts.filter(p => p.category === selectedCategory);
+        setProducts(filtered);
       }
+    };
 
-      const { data, error } = await query;
+    const interval = setInterval(checkForUpdates, 1500);
+    checkForUpdates();
 
-      if (error) throw error;
-      setProducts(data || []);
-    } catch (err) {
-      console.error('Error loading products:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    return () => clearInterval(interval);
+  }, [selectedCategory]);
 
   return (
     <div className="min-h-screen">
@@ -59,13 +64,9 @@ export function HomePage() {
           <span className="bg-gray-200 px-3 py-1 rounded-full text-sm">{products.length} Items</span>
         </div>
         
-        {loading ? (
-          <div className="flex justify-center items-center h-40">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
-          </div>
-        ) : products.length === 0 ? (
+        {products.length === 0 ? (
           <div className="text-center py-20">
-            <p className="text-gray-500">No products found. Add some in Supabase!</p>
+            <p className="text-gray-500">No products available in this category</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
