@@ -3,41 +3,49 @@ import { ProductCard } from '@/components/features/ProductCard';
 import { CategoryFilter } from '@/components/layout/CategoryFilter';
 import { OrderForm } from '@/components/forms/OrderForm';
 import { ProductModal } from '@/components/features/ProductModal';
-import { storage } from '@/lib/storage';
 import { Product } from '@/types';
+// Supabase ని ఇంపోర్ట్ చేస్తున్నాం
+import { createClient } from '@supabase/supabase-js';
+
+// Supabase కనెక్షన్ సెటప్
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''; 
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadProducts();
-    
-    // Listen for storage events (cross-tab sync)
-    const handleStorageChange = () => {
-      loadProducts();
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
-    
-    // Aggressive polling for real-time sync (works on published sites)
-    const interval = setInterval(loadProducts, 1000);
-    
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
-    };
+    loadSupabaseProducts();
   }, [selectedCategory]);
 
-  const loadProducts = () => {
-    // CRITICAL FIX: Only show published products to users
-    const allProducts = storage.getPublishedProducts();
-    const filtered = selectedCategory === 'all' 
-      ? allProducts 
-      : allProducts.filter(p => p.category === selectedCategory);
-    setProducts(filtered);
+  const loadSupabaseProducts = async () => {
+    setLoading(true);
+    try {
+      let query = supabase.from('products').select('*');
+      
+      // కేటగిరీ ఫిల్టర్ ఉంటే
+      if (selectedCategory !== 'all') {
+        query = query.eq('category', selectedCategory);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Supabase Error:', error);
+      } else {
+        // ఇక్కడ మనం తెచ్చుకున్న డేటాని సెట్ చేస్తున్నాం
+        setProducts(data || []);
+      }
+    } catch (err) {
+      console.error('Fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -76,7 +84,9 @@ export function HomePage() {
           <span className="text-muted-foreground">{products.length} products</span>
         </div>
         
-        {products.length === 0 ? (
+        {loading ? (
+           <div className="text-center py-16">Loading your Srikakulam specials...</div>
+        ) : products.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">
             <p className="text-lg">No products available at the moment.</p>
             <p className="text-sm mt-2">Check back soon for new arrivals!</p>
