@@ -57,6 +57,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^0.446.0",
     "tailwind-merge": "^2.5.2",
+    "three": "^0.170.0",
     "three-mesh-bvh": "^0.8.0"
   },
   "devDependencies": {
@@ -64,6 +65,7 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "@vitejs/plugin-react-swc": "^3.5.0",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.9.0",
     "gh-pages": "^6.1.1",
