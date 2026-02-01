@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Package, ShoppingCart, Users, Plus, Trash2, Phone, Edit, Bell, CreditCard, Save } from 'lucide-react';
+import { Package, ShoppingCart, Users, Plus, Trash2, Phone, Edit, Bell, CreditCard, Save, Eye, EyeOff, CheckCircle, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,6 +24,7 @@ export function AdminDashboard() {
   const [showAddContact, setShowAddContact] = useState(false);
   const [showAddPayment, setShowAddPayment] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [newAdmin, setNewAdmin] = useState({ username: '', email: '', password: '' });
   const [newContact, setNewContact] = useState({ label: '', number: '', isPrimary: false });
   const [newPayment, setNewPayment] = useState({
@@ -448,15 +449,27 @@ export function AdminDashboard() {
                       </select>
                     </div>
                   </div>
-                  <div>
-                    <Label htmlFor="price">Price (₹) *</Label>
-                    <Input
-                      id="price"
-                      type="number"
-                      required
-                      value={newProduct.price}
-                      onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-                    />
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="price">Sale Price (₹) *</Label>
+                      <Input
+                        id="price"
+                        type="number"
+                        required
+                        value={newProduct.price}
+                        onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="mrp">MRP (₹)</Label>
+                      <Input
+                        id="mrp"
+                        type="number"
+                        value={newProduct.mrp}
+                        onChange={(e) => setNewProduct({ ...newProduct, mrp: e.target.value })}
+                        placeholder="Original price"
+                      />
+                    </div>
                   </div>
                   <div>
                     <Label>Product Image *</Label>
@@ -508,12 +521,20 @@ export function AdminDashboard() {
                             <option key={cat.id} value={cat.id}>{cat.name}</option>
                           ))}
                         </select>
-                        <Input
-                          type="number"
-                          value={editingProduct.price}
-                          onChange={(e) => setEditingProduct({ ...editingProduct, price: parseFloat(e.target.value) })}
-                          placeholder="Price"
-                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                            type="number"
+                            value={editingProduct.price}
+                            onChange={(e) => setEditingProduct({ ...editingProduct, price: parseFloat(e.target.value) })}
+                            placeholder="Sale Price"
+                          />
+                          <Input
+                            type="number"
+                            value={editingProduct.mrp || ''}
+                            onChange={(e) => setEditingProduct({ ...editingProduct, mrp: e.target.value ? parseFloat(e.target.value) : undefined })}
+                            placeholder="MRP"
+                          />
+                        </div>
                         <Textarea
                           value={editingProduct.description}
                           onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })}
@@ -531,16 +552,47 @@ export function AdminDashboard() {
                       </div>
                     ) : (
                       <>
-                        <img src={product.image} alt={product.name} className="w-full h-40 object-cover" />
+                        <div className="relative">
+                          <img src={product.image} alt={product.name} className="w-full h-40 object-cover" />
+                          <button
+                            onClick={() => {
+                              storage.updateProduct(product.id, { status: product.status === 'published' ? 'draft' : 'published' });
+                              setProducts(storage.getProducts());
+                              toast({ title: product.status === 'published' ? '📦 Product unpublished (hidden from users)' : '✅ Product published (visible to users)' });
+                            }}
+                            className={`absolute top-2 right-2 p-2 rounded-full shadow-lg ${
+                              product.status === 'published' 
+                                ? 'bg-green-500 hover:bg-green-600' 
+                                : 'bg-gray-500 hover:bg-gray-600'
+                            } text-white transition-colors`}
+                            title={product.status === 'published' ? 'Click to unpublish' : 'Click to publish'}
+                          >
+                            {product.status === 'published' ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                          </button>
+                        </div>
                         <div className="p-4">
                           <h3 className="font-semibold mb-1">{product.name}</h3>
                           <p className="text-xs text-muted-foreground mb-2 capitalize">{product.category}</p>
                           <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{product.description}</p>
                           <div className="flex items-center justify-between mb-3">
-                            <span className="font-bold text-primary">₹{product.price}</span>
-                            {product.rating && (
-                              <span className="text-xs text-muted-foreground">⭐ {product.rating}</span>
-                            )}
+                            <div>
+                              <span className="font-bold text-primary">₹{product.price}</span>
+                              {product.mrp && product.mrp > product.price && (
+                                <span className="text-xs text-muted-foreground line-through ml-2">₹{product.mrp}</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {product.rating && (
+                                <span className="text-xs text-muted-foreground">⭐ {product.rating}</span>
+                              )}
+                              <span className={`text-xs px-2 py-0.5 rounded ${
+                                product.status === 'published' 
+                                  ? 'bg-green-100 text-green-700' 
+                                  : 'bg-gray-100 text-gray-700'
+                              }`}>
+                                {product.status === 'published' ? 'Live' : 'Draft'}
+                              </span>
+                            </div>
                           </div>
                           <div className="flex gap-2">
                             <Button
@@ -587,44 +639,171 @@ export function AdminDashboard() {
                   <p className="text-center text-muted-foreground py-8">No orders yet</p>
                 ) : (
                   orders.map((order) => (
-                    <div key={order.id} className="border rounded-lg p-4">
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <h3 className="font-semibold">{order.productName}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            Order #{order.id} • {new Date(order.orderDate).toLocaleDateString()}
-                          </p>
+                    <div key={order.id} className="border rounded-lg overflow-hidden">
+                      {editingOrder?.id === order.id ? (
+                        <div className="p-4 bg-muted space-y-3">
+                          <h3 className="font-semibold">Update Order #{order.id}</h3>
+                          <div className="grid md:grid-cols-2 gap-4">
+                            <div>
+                              <Label>Order Status</Label>
+                              <select
+                                value={editingOrder.status}
+                                onChange={(e) => setEditingOrder({ ...editingOrder, status: e.target.value as Order['status'] })}
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                              >
+                                <option value="pending">Pending</option>
+                                <option value="confirmed">Confirmed</option>
+                                <option value="processing">Processing</option>
+                                <option value="shipped">Shipped</option>
+                                <option value="delivered">Delivered</option>
+                                <option value="cancelled">Cancelled</option>
+                              </select>
+                            </div>
+                            <div>
+                              <Label>Payment Status</Label>
+                              <select
+                                value={editingOrder.paymentStatus}
+                                onChange={(e) => setEditingOrder({ ...editingOrder, paymentStatus: e.target.value as Order['paymentStatus'] })}
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                              >
+                                <option value="pending">Pending</option>
+                                <option value="completed">Completed</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div>
+                            <Label>Tracking Number (Optional)</Label>
+                            <Input
+                              value={editingOrder.trackingNumber || ''}
+                              onChange={(e) => setEditingOrder({ ...editingOrder, trackingNumber: e.target.value })}
+                              placeholder="e.g., 1234567890"
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button onClick={() => {
+                              const updates: Partial<Order> = {
+                                status: editingOrder.status,
+                                paymentStatus: editingOrder.paymentStatus,
+                                trackingNumber: editingOrder.trackingNumber,
+                              };
+                              if (editingOrder.paymentStatus === 'completed' && !order.paymentDate) {
+                                updates.paymentDate = new Date().toISOString();
+                              }
+                              storage.updateOrder(editingOrder.id, updates);
+                              setOrders(storage.getOrders());
+                              setEditingOrder(null);
+                              toast({ title: '✅ Order updated successfully!' });
+                            }} size="sm">
+                              <Save className="w-4 h-4 mr-2" />
+                              Save Changes
+                            </Button>
+                            <Button onClick={() => setEditingOrder(null)} variant="outline" size="sm">
+                              Cancel
+                            </Button>
+                          </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteOrder(order.id)}
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
-                      </div>
-                      <div className="grid md:grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <p className="font-medium">Customer Details:</p>
-                          <p>{order.customerName}</p>
-                          <p>{order.phone}</p>
-                          {order.email && <p>{order.email}</p>}
-                        </div>
-                        <div>
-                          <p className="font-medium">Delivery Address:</p>
-                          <p>{order.address}</p>
-                          <p>{order.city}, {order.state} - {order.pincode}</p>
-                        </div>
-                      </div>
-                      <div className="mt-3 flex justify-between items-center">
-                        <div className="text-sm">
-                          <span className="font-medium">Quantity:</span> {order.quantity}
-                          {order.notes && <p className="text-muted-foreground">Notes: {order.notes}</p>}
-                        </div>
-                        <span className="text-lg font-bold text-primary">
-                          ₹{order.productPrice * order.quantity}
-                        </span>
-                      </div>
+                      ) : (
+                        <>
+                          <div className="bg-gray-50 px-4 py-3 border-b flex flex-wrap gap-4 justify-between items-center">
+                            <div className="text-sm">
+                              <span className="font-medium">Order #{order.id}</span>
+                              <span className="text-muted-foreground ml-4">{new Date(order.orderDate).toLocaleDateString()}</span>
+                            </div>
+                            <div className="flex gap-2">
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium border ${
+                                order.status === 'pending' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
+                                order.status === 'confirmed' ? 'bg-blue-100 text-blue-800 border-blue-300' :
+                                order.status === 'processing' ? 'bg-purple-100 text-purple-800 border-purple-300' :
+                                order.status === 'shipped' ? 'bg-orange-100 text-orange-800 border-orange-300' :
+                                order.status === 'delivered' ? 'bg-green-100 text-green-800 border-green-300' :
+                                'bg-red-100 text-red-800 border-red-300'
+                              }`}>
+                                {order.status.toUpperCase()}
+                              </span>
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium border ${
+                                order.paymentStatus === 'completed' 
+                                  ? 'bg-green-100 text-green-800 border-green-300'
+                                  : 'bg-yellow-100 text-yellow-800 border-yellow-300'
+                              }`}>
+                                {order.paymentStatus === 'completed' ? 'PAID' : 'PENDING PAYMENT'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="p-4">
+                            <div className="flex justify-between items-start mb-4">
+                              <div>
+                                <h3 className="font-semibold text-lg">{order.productName}</h3>
+                                <p className="text-sm text-muted-foreground">Quantity: {order.quantity}</p>
+                                <p className="text-2xl font-bold text-primary mt-1">₹{order.productPrice * order.quantity}</p>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteOrder(order.id)}
+                              >
+                                <Trash2 className="w-4 h-4 text-destructive" />
+                              </Button>
+                            </div>
+                            
+                            {order.trackingNumber && (
+                              <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-3">
+                                <p className="text-sm font-medium flex items-center gap-2">
+                                  <Truck className="w-4 h-4" />
+                                  Tracking: <span className="font-mono">{order.trackingNumber}</span>
+                                </p>
+                              </div>
+                            )}
+                            
+                            {order.paymentDate && (
+                              <div className="bg-green-50 border border-green-200 rounded p-3 mb-3">
+                                <p className="text-sm font-medium flex items-center gap-2">
+                                  <CheckCircle className="w-4 h-4" />
+                                  Payment Received: {new Date(order.paymentDate).toLocaleDateString()}
+                                </p>
+                              </div>
+                            )}
+                            
+                            <div className="grid md:grid-cols-2 gap-3 text-sm mb-3">
+                              <div>
+                                <p className="font-medium mb-1">Customer Details:</p>
+                                <p>{order.customerName}</p>
+                                <p>{order.phone}</p>
+                                {order.email && <p>{order.email}</p>}
+                              </div>
+                              <div>
+                                <p className="font-medium mb-1">Delivery Address:</p>
+                                <p>{order.address}</p>
+                                <p>{order.city}, {order.state} - {order.pincode}</p>
+                              </div>
+                            </div>
+                            
+                            {order.notes && (
+                              <div className="mb-3">
+                                <p className="font-medium text-sm mb-1">Special Instructions:</p>
+                                <p className="text-sm text-muted-foreground">{order.notes}</p>
+                              </div>
+                            )}
+                            
+                            {order.cancellationReason && (
+                              <div className="bg-red-50 border border-red-200 rounded p-3 mb-3">
+                                <p className="text-sm font-medium mb-1">Cancellation Reason:</p>
+                                <p className="text-sm text-muted-foreground">{order.cancellationReason}</p>
+                              </div>
+                            )}
+                            
+                            <div className="flex justify-end">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setEditingOrder({ ...order })}
+                              >
+                                <Edit className="w-4 h-4 mr-2" />
+                                Update Order
+                              </Button>
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   ))
                 )}

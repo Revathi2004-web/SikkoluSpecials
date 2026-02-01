@@ -207,6 +207,11 @@ export const storage = {
     window.dispatchEvent(new Event('storage'));
   },
 
+  deleteOrder: (orderId: string) => {
+    const orders = storage.getOrders().filter(o => o.id !== orderId);
+    storage.saveOrders(orders);
+  },
+
   getUserOrders: (userId: string): Order[] => {
     return storage.getOrders().filter(o => o.userId === userId);
   },
