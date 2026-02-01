@@ -4,13 +4,7 @@ import { CategoryFilter } from '@/components/layout/CategoryFilter';
 import { OrderForm } from '@/components/forms/OrderForm';
 import { ProductModal } from '@/components/features/ProductModal';
 import { Product } from '@/types';
-// Supabase ని ఇంపోర్ట్ చేస్తున్నాం
-import { createClient } from '@supabase/supabase-js';
-
-// Supabase కనెక్షన్ సెటప్
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''; 
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { supabase } from '@/lib/supabaseClient'; // పైన మనం క్రియేట్ చేసిన ఫైల్ లింక్
 
 export function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -26,73 +20,55 @@ export function HomePage() {
   const loadSupabaseProducts = async () => {
     setLoading(true);
     try {
+      // సుపాబేస్ నుండి డేటా ఫెచ్ చేయడం
       let query = supabase.from('products').select('*');
       
-      // కేటగిరీ ఫిల్టర్ ఉంటే
       if (selectedCategory !== 'all') {
         query = query.eq('category', selectedCategory);
       }
 
       const { data, error } = await query;
 
-      if (error) {
-        console.error('Supabase Error:', error);
-      } else {
-        // ఇక్కడ మనం తెచ్చుకున్న డేటాని సెట్ చేస్తున్నాం
-        setProducts(data || []);
-      }
+      if (error) throw error;
+      setProducts(data || []);
     } catch (err) {
-      console.error('Fetch error:', err);
+      console.error('Error loading products:', err);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div>
+    <div className="min-h-screen">
       {/* Hero Section */}
-      <div className="relative bg-gradient-to-br from-primary/90 to-primary text-primary-foreground py-16 md:py-24">
+      <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white py-16">
         <div className="container mx-auto px-4">
-          <div className="max-w-3xl">
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">
-              Authentic Srikakulam Products
-            </h1>
-            <p className="text-lg md:text-xl mb-6 opacity-95">
-              Discover the finest traditional snacks, sweets, handicrafts, and local specialties from the heart of Srikakulam
-            </p>
-            <div className="flex gap-3 text-sm flex-wrap">
-              <div className="bg-white/20 backdrop-blur px-4 py-2 rounded-lg">✓ 100% Authentic</div>
-              <div className="bg-white/20 backdrop-blur px-4 py-2 rounded-lg">✓ Local Artisans</div>
-              <div className="bg-white/20 backdrop-blur px-4 py-2 rounded-lg">✓ Fast Delivery</div>
-            </div>
-          </div>
+          <h1 className="text-4xl md:text-5xl font-bold mb-4">Sikkolu Specials</h1>
+          <p className="text-xl opacity-90">Srikakulam's Traditional Treasures Delivered to You.</p>
         </div>
       </div>
 
-      {/* Category Filter */}
       <CategoryFilter
         selectedCategory={selectedCategory}
         onSelectCategory={setSelectedCategory}
       />
 
-      {/* Products Grid */}
       <div className="container mx-auto px-4 pb-12">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold">
-            {selectedCategory === 'all' ? 'All Products' : `${selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)}`}
-          </h2>
-          <span className="text-muted-foreground">{products.length} products</span>
+        <div className="flex justify-between items-center mb-8">
+          <h2 className="text-2xl font-bold capitalize">{selectedCategory} Products</h2>
+          <span className="bg-gray-200 px-3 py-1 rounded-full text-sm">{products.length} Items</span>
         </div>
         
         {loading ? (
-           <div className="text-center py-16">Loading your Srikakulam specials...</div>
+          <div className="flex justify-center items-center h-40">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+          </div>
         ) : products.length === 0 ? (
-          <div className="text-center py-16 text-muted-foreground">
-            <p className="text-lg">No products available at the moment.</p>
-            <p className="text-sm mt-2">Check back soon for new arrivals!</p>
+          <div className="text-center py-20">
+            <p className="text-gray-500">No products found. Add some in Supabase!</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {products.map((product) => (
               <ProductCard
                 key={product.id}
@@ -105,7 +81,6 @@ export function HomePage() {
         )}
       </div>
 
-      {/* Product Details Modal */}
       {viewingProduct && (
         <ProductModal
           product={viewingProduct}
@@ -117,7 +92,6 @@ export function HomePage() {
         />
       )}
 
-      {/* Order Form Modal */}
       {selectedProduct && (
         <OrderForm
           product={selectedProduct}
