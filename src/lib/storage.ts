@@ -21,54 +21,66 @@ const initializeDefaultData = () => {
         name: 'Kakinada Kaja',
         category: 'sweets',
         price: 350,
+        mrp: 450,
         image: 'https://images.unsplash.com/photo-1616690710400-a16d146927c5?w=500&h=500&fit=crop',
         description: 'Traditional sweet delicacy from coastal Andhra',
         createdAt: new Date().toISOString(),
+        status: 'published',
       },
       {
         id: '2',
         name: 'Bamboo Handicrafts',
         category: 'handicrafts',
         price: 450,
+        mrp: 550,
         image: 'https://images.unsplash.com/photo-1582735689851-1f6001f07a4b?w=500&h=500&fit=crop',
         description: 'Handcrafted bamboo products by local artisans',
         createdAt: new Date().toISOString(),
+        status: 'published',
       },
       {
         id: '3',
         name: 'Srikakulam Special Mixture',
         category: 'snacks',
         price: 180,
+        mrp: 220,
         image: 'https://images.unsplash.com/photo-1599490659213-e2b9527bd087?w=500&h=500&fit=crop',
         description: 'Crispy traditional mixture with authentic spices',
         createdAt: new Date().toISOString(),
+        status: 'published',
       },
       {
         id: '4',
         name: 'Handloom Cotton Saree',
         category: 'clothing',
         price: 1200,
+        mrp: 1500,
         image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=500&h=500&fit=crop',
         description: 'Pure handloom cotton saree with traditional designs',
         createdAt: new Date().toISOString(),
+        status: 'published',
       },
       {
         id: '5',
         name: 'Red Chilli Powder',
         category: 'spices',
         price: 120,
+        mrp: 150,
         image: 'https://images.unsplash.com/photo-1599639957043-f3aa5c986398?w=500&h=500&fit=crop',
         description: 'Premium quality red chilli powder from local farms',
         createdAt: new Date().toISOString(),
+        status: 'published',
       },
       {
         id: '6',
         name: 'Palm Leaf Products',
         category: 'accessories',
         price: 250,
+        mrp: 300,
         image: 'https://images.unsplash.com/photo-1564584217132-2271feaeb3c5?w=500&h=500&fit=crop',
         description: 'Eco-friendly palm leaf accessories',
         createdAt: new Date().toISOString(),
+        status: 'published',
       },
     ];
     localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(defaultProducts));
@@ -164,6 +176,11 @@ export const storage = {
       p.id === productId ? { ...p, ...updates } : p
     );
     storage.saveProducts(products);
+    window.dispatchEvent(new Event('storage'));
+  },
+
+  getPublishedProducts: (): Product[] => {
+    return storage.getProducts().filter(p => p.status === 'published');
   },
 
   // Orders
@@ -182,9 +199,16 @@ export const storage = {
     storage.saveOrders(orders);
   },
   
-  deleteOrder: (orderId: string) => {
-    const orders = storage.getOrders().filter(o => o.id !== orderId);
+  updateOrder: (orderId: string, updates: Partial<Order>) => {
+    const orders = storage.getOrders().map(o => 
+      o.id === orderId ? { ...o, ...updates } : o
+    );
     storage.saveOrders(orders);
+    window.dispatchEvent(new Event('storage'));
+  },
+
+  getUserOrders: (userId: string): Order[] => {
+    return storage.getOrders().filter(o => o.userId === userId);
   },
 
   // Admins

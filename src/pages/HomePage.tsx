@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { ProductCard } from '@/components/features/ProductCard';
 import { CategoryFilter } from '@/components/layout/CategoryFilter';
 import { OrderForm } from '@/components/forms/OrderForm';
@@ -10,35 +10,35 @@ export function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
-  const [products, setProducts] = useState<Product[]>(storage.getProducts());
+  const [products, setProducts] = useState<Product[]>([]);
 
-  // Real-time sync: Refresh products to sync with admin changes (works for published sites too)
-  const productsRef = useRef<Product[]>(products);
-  
   useEffect(() => {
-    productsRef.current = products;
-  }, [products]);
-  
-  useEffect(() => {
-    // Immediate load
-    setProducts(storage.getProducts());
+    loadProducts();
     
-    // Poll for changes every 1.5 seconds for real-time updates
-    const interval = setInterval(() => {
-      const updatedProducts = storage.getProducts();
-      // Only update if products have actually changed
-      if (JSON.stringify(updatedProducts) !== JSON.stringify(productsRef.current)) {
-        setProducts(updatedProducts);
-        console.log('✅ Products synced from admin changes');
-      }
-    }, 1500);
+    // Listen for storage events (cross-tab sync)
+    const handleStorageChange = () => {
+      loadProducts();
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Aggressive polling for real-time sync (works on published sites)
+    const interval = setInterval(loadProducts, 1000);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, [selectedCategory]);
 
-    return () => clearInterval(interval);
-  }, []); // Empty dependency array - run once on mount
-
-  const filteredProducts = selectedCategory === 'all'
-    ? products
-    : products.filter(p => p.category === selectedCategory);
+  const loadProducts = () => {
+    // CRITICAL FIX: Only show published products to users
+    const allProducts = storage.getPublishedProducts();
+    const filtered = selectedCategory === 'all' 
+      ? allProducts 
+      : allProducts.filter(p => p.category === selectedCategory);
+    setProducts(filtered);
+  };
 
   return (
     <div>
@@ -52,7 +52,7 @@ export function HomePage() {
             <p className="text-lg md:text-xl mb-6 opacity-95">
               Discover the finest traditional snacks, sweets, handicrafts, and local specialties from the heart of Srikakulam
             </p>
-            <div className="flex gap-3 text-sm">
+            <div className="flex gap-3 text-sm flex-wrap">
               <div className="bg-white/20 backdrop-blur px-4 py-2 rounded-lg">✓ 100% Authentic</div>
               <div className="bg-white/20 backdrop-blur px-4 py-2 rounded-lg">✓ Local Artisans</div>
               <div className="bg-white/20 backdrop-blur px-4 py-2 rounded-lg">✓ Fast Delivery</div>
@@ -73,16 +73,17 @@ export function HomePage() {
           <h2 className="text-2xl font-bold">
             {selectedCategory === 'all' ? 'All Products' : `${selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)}`}
           </h2>
-          <span className="text-muted-foreground">{filteredProducts.length} products</span>
+          <span className="text-muted-foreground">{products.length} products</span>
         </div>
         
-        {filteredProducts.length === 0 ? (
+        {products.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">
-            No products found in this category
+            <p className="text-lg">No products available at the moment.</p>
+            <p className="text-sm mt-2">Check back soon for new arrivals!</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-            {filteredProducts.map((product) => (
+            {products.map((product) => (
               <ProductCard
                 key={product.id}
                 product={product}

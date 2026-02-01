@@ -6,6 +6,7 @@ import { LoginPortal } from '@/pages/LoginPortal';
 import { LoginForm } from '@/components/forms/LoginForm';
 import { Cart } from '@/components/features/Cart';
 import { ChatBot } from '@/components/features/ChatBot';
+import { MyOrders } from '@/pages/MyOrders';
 import { useAuthStore } from '@/stores/authStore';
 import { Toaster } from '@/components/ui/toaster';
 
@@ -14,6 +15,17 @@ export default function App() {
   const [showUserLogin, setShowUserLogin] = useState(false);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [showCart, setShowCart] = useState(false);
+  const [currentPage, setCurrentPage] = useState<'home' | 'orders'>('home');
+
+  // Listen for hash changes to handle routing
+  window.addEventListener('hashchange', () => {
+    const hash = window.location.hash;
+    if (hash === '#/my-orders') {
+      setCurrentPage('orders');
+    } else {
+      setCurrentPage('home');
+    }
+  });
 
   // Show login portal if no user is logged in
   if (!currentAdmin && !currentUser) {
@@ -45,7 +57,13 @@ export default function App() {
         onCartClick={() => setShowCart(true)}
       />
       
-      {currentAdmin ? <AdminDashboard /> : <HomePage />}
+      {currentAdmin ? (
+        <AdminDashboard />
+      ) : currentPage === 'orders' ? (
+        <MyOrders />
+      ) : (
+        <HomePage />
+      )}
 
       {/* Show chatbot only for users, not admins */}
       {currentUser && <ChatBot />}

@@ -40,6 +40,7 @@ export function AdminDashboard() {
     name: '',
     category: 'snacks',
     price: '',
+    mrp: '',
     image: '',
     description: '',
   });
@@ -82,25 +83,40 @@ export function AdminDashboard() {
   const handleAddProduct = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validation
+    if (!newProduct.name.trim()) {
+      toast({ title: 'Product name is required', variant: 'destructive' });
+      return;
+    }
+    if (!newProduct.price || parseFloat(newProduct.price) <= 0) {
+      toast({ title: 'Valid price is required', variant: 'destructive' });
+      return;
+    }
     if (!newProduct.image) {
-      toast({ title: 'Please upload a product image', variant: 'destructive' });
+      toast({ title: 'Product image is required', variant: 'destructive' });
+      return;
+    }
+    if (!newProduct.description.trim()) {
+      toast({ title: 'Product description is required', variant: 'destructive' });
       return;
     }
     
     const product: Product = {
       id: Date.now().toString(),
-      name: newProduct.name,
+      name: newProduct.name.trim(),
       category: newProduct.category,
       price: parseFloat(newProduct.price),
+      mrp: newProduct.mrp ? parseFloat(newProduct.mrp) : undefined,
       image: newProduct.image,
-      description: newProduct.description,
+      description: newProduct.description.trim(),
       createdAt: new Date().toISOString(),
+      status: 'published', // Default to published
     };
     storage.addProduct(product);
     setProducts(storage.getProducts());
-    setNewProduct({ name: '', category: 'snacks', price: '', image: '', description: '' });
+    setNewProduct({ name: '', category: 'snacks', price: '', mrp: '', image: '', description: '' });
     setShowAddProduct(false);
-    toast({ title: 'Product added successfully! Users will see it immediately.' });
+    toast({ title: '✅ Product added and published! Visible to all users instantly.' });
   };
 
   const handleEditProduct = (product: Product) => {
@@ -110,16 +126,32 @@ export function AdminDashboard() {
   const handleSaveProduct = () => {
     if (!editingProduct) return;
     
+    // Validation
+    if (!editingProduct.name.trim()) {
+      toast({ title: 'Product name is required', variant: 'destructive' });
+      return;
+    }
+    if (editingProduct.price <= 0) {
+      toast({ title: 'Valid price is required', variant: 'destructive' });
+      return;
+    }
+    if (!editingProduct.image) {
+      toast({ title: 'Product image is required', variant: 'destructive' });
+      return;
+    }
+    
     storage.updateProduct(editingProduct.id, {
-      name: editingProduct.name,
+      name: editingProduct.name.trim(),
       category: editingProduct.category,
       price: editingProduct.price,
+      mrp: editingProduct.mrp,
       image: editingProduct.image,
-      description: editingProduct.description,
+      description: editingProduct.description.trim(),
+      status: editingProduct.status,
     });
     setProducts(storage.getProducts());
     setEditingProduct(null);
-    toast({ title: 'Product updated! Changes are live for all users.' });
+    toast({ title: '✅ Product updated! Changes are live for all users instantly.' });
   };
 
   const handleDeleteProduct = (productId: string) => {

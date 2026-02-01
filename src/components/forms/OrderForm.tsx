@@ -78,6 +78,8 @@ export function OrderForm({ product, cartItems, onClose, onSuccess }: OrderFormP
           notes: formData.notes,
           orderDate: new Date().toISOString(),
           status: 'pending',
+          paymentStatus: 'pending',
+          userId: storage.getCurrentUser()?.id,
         };
         storage.addOrder(order);
       });
@@ -97,6 +99,8 @@ export function OrderForm({ product, cartItems, onClose, onSuccess }: OrderFormP
         ...formData,
         orderDate: new Date().toISOString(),
         status: 'pending',
+        paymentStatus: 'pending',
+        userId: storage.getCurrentUser()?.id,
       };
       storage.addOrder(order);
       

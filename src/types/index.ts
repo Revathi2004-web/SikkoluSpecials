@@ -3,11 +3,13 @@ export interface Product {
   name: string;
   category: string;
   price: number;
+  mrp?: number;
   image: string;
   description: string;
   createdAt: string;
   rating?: number;
   reviewCount?: number;
+  status: 'draft' | 'published';
 }
 
 export interface Order {
@@ -25,7 +27,12 @@ export interface Order {
   quantity: number;
   notes: string;
   orderDate: string;
-  status: 'pending' | 'confirmed' | 'completed';
+  status: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  paymentStatus: 'pending' | 'completed';
+  paymentDate?: string;
+  trackingNumber?: string;
+  cancellationReason?: string;
+  userId?: string;
 }
 
 export interface Admin {

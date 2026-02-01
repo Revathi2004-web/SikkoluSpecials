@@ -1,4 +1,4 @@
-import { ShoppingBag, UserCircle, LogOut, ShoppingCart } from 'lucide-react';
+import { ShoppingBag, UserCircle, LogOut, ShoppingCart, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/authStore';
 import { useCartStore } from '@/stores/cartStore';
@@ -24,17 +24,26 @@ export function Header({ onUserLogin, onAdminLogin, onCartClick }: HeaderProps) 
         
         <div className="flex items-center gap-2 md:gap-3">
           {currentUser && (
-            <button
-              onClick={onCartClick}
-              className="relative p-2 hover:bg-gray-100 rounded-full transition-colors"
-            >
-              <ShoppingCart className="w-5 h-5 md:w-6 md:h-6 text-foreground" />
-              {cartItemCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                  {cartItemCount}
-                </span>
-              )}
-            </button>
+            <>
+              <button
+                onClick={() => window.location.hash = '#/my-orders'}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                title="My Orders"
+              >
+                <Package className="w-5 h-5 md:w-6 md:h-6 text-foreground" />
+              </button>
+              <button
+                onClick={onCartClick}
+                className="relative p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <ShoppingCart className="w-5 h-5 md:w-6 md:h-6 text-foreground" />
+                {cartItemCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {cartItemCount}
+                  </span>
+                )}
+              </button>
+            </>
           )}
           
           {currentAdmin ? (
