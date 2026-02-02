@@ -1,63 +1,38 @@
-// Order notification management
-const NOTIFICATION_KEY = 'sikkolu_last_order_check';
+import { Order } from '@/types';
+
+const LAST_CHECK_KEY = 'last_order_check_timestamp';
 
 export const notifications = {
-  // Get the timestamp of last order check
-  getLastOrderCheck: (): number => {
-    const stored = localStorage.getItem(NOTIFICATION_KEY);
-    return stored ? parseInt(stored) : Date.now();
+  // Browser permission adagadaniki
+  requestPermission: async () => {
+    if (!('Notification' in window)) return false;
+    const permission = await Notification.requestPermission();
+    return permission === 'granted';
   },
 
-  // Update last order check timestamp
-  updateLastOrderCheck: () => {
-    localStorage.setItem(NOTIFICATION_KEY, Date.now().toString());
+  // Kotha order vachinapudu sound play cheyadaniki
+  playSound: () => {
+    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
+    audio.play().catch(err => console.log('Audio blocked:', err));
   },
 
-  // Check for new orders since last check
-  getNewOrdersCount: (orders: any[]): number => {
-    const lastCheck = notifications.getLastOrderCheck();
-    return orders.filter(order => 
-      new Date(order.orderDate).getTime() > lastCheck
-    ).length;
-  },
-
-  // Request browser notification permission
-  requestPermission: async (): Promise<boolean> => {
-    if (!('Notification' in window)) {
-      return false;
-    }
-
-    if (Notification.permission === 'granted') {
-      return true;
-    }
-
-    if (Notification.permission !== 'denied') {
-      const permission = await Notification.requestPermission();
-      return permission === 'granted';
-    }
-
-    return false;
-  },
-
-  // Show browser notification
+  // Desktop notification chupinchadaniki
   showNotification: (title: string, body: string) => {
     if (Notification.permission === 'granted') {
-      new Notification(title, {
-        body,
-        icon: '/favicon.ico',
-        badge: '/favicon.ico',
-        tag: 'sikkolu-order',
-        requireInteraction: false,
-      });
+      new Notification(title, { body, icon: '/logo.png' });
     }
   },
 
-  // Play notification sound
-  playSound: () => {
-    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZURE=');
-    audio.volume = 0.3;
-    audio.play().catch(() => {
-      // Ignore errors if audio can't play
-    });
+  // Kotha orders count check cheyadaniki
+  getNewOrdersCount: (orders: Order[]) => {
+    const lastCheck = localStorage.getItem(LAST_CHECK_KEY);
+    if (!lastCheck) return 0;
+    const lastCheckDate = new Date(lastCheck);
+    return orders.filter(order => new Date(order.orderDate) > lastCheckDate).length;
   },
+
+  // Admin orders chusinapudu timestamp update cheyadaniki
+  updateLastOrderCheck: () => {
+    localStorage.setItem(LAST_CHECK_KEY, new Date().toISOString());
+  }
 };
