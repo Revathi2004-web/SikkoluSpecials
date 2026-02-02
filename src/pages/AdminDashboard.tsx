@@ -1,145 +1,110 @@
-// components/AdminDashboard.tsx
-import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 import { notifications } from '@/lib/notifications';
 import { 
   LayoutDashboard, Package, ShoppingCart, Settings, 
-  Plus, Save, Trash2, Eye, EyeOff, CheckCircle, XCircle, Receipt 
+  Plus, Save, Trash2, Eye, EyeOff, CheckCircle, XCircle, 
+  Receipt, Truck, CreditCard, UserPlus, Bell
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { Product, Order } from '@/types';
 
 export function AdminDashboard() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('orders');
-  const [orders, setOrders] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [paymentSettings, setPaymentSettings] = useState({ upi_id: '', bank_details: '' });
+  const [products, setProducts] = useState<Product[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [settings, setSettings] = useState({ upi_id: '', bank_details: '' });
+  const [isLoading, setIsLoading] = useState(false);
 
-  // 1. LIVE SYNC: Customer order ivvagane ventane sound/alert ravalante:
+  // 1. DATA LOAD & REAL-TIME LISTENING
   useEffect(() => {
-    fetchInitialData();
-    const subscription = supabase
-      .channel('live_updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          notifications.playSound();
-          toast({ title: "New Order Received! 🛒", description: "Check orders tab." });
-        }
-        fetchOrders();
+    fetchAllData();
+
+    // Live Order Notification Listener
+    const orderSubscription = supabase
+      .channel('admin_live_updates')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
+        notifications.playSound();
+        notifications.showNotification("New Order Received! 🛒", `Order for ₹${payload.new.total_price} just came in.`);
+        fetchAllData();
       })
       .subscribe();
-    return () => { supabase.removeChannel(subscription); };
+
+    return () => {
+      supabase.removeChannel(orderSubscription);
+    };
   }, []);
 
-  const fetchInitialData = async () => {
+  const fetchAllData = async () => {
+    setIsLoading(true);
+    const { data: prod } = await supabase.from('products').select('*').order('created_at', { ascending: false });
     const { data: ord } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-    const { data: prod } = await supabase.from('products').select('*');
-    const { data: sett } = await supabase.from('site_settings').select('*').single();
-    setOrders(ord || []);
-    setProducts(prod || []);
-    if (sett) setPaymentSettings(sett.payment_data);
+    const { data: sett } = await supabase.from('site_settings').select('*').eq('id', 'master_config').single();
+
+    if (prod) setProducts(prod);
+    if (ord) setOrders(ord);
+    if (sett) setSettings({ upi_id: sett.upi_id, bank_details: sett.bank_details });
+    setIsLoading(false);
   };
 
-  const fetchOrders = async () => {
-    const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-    setOrders(data || []);
-  };
-
-  const updateOrderField = async (orderId: string, updates: any) => {
-    const { error } = await supabase.from('orders').update(updates).eq('id', orderId);
+  // 2. PRODUCT ACTIONS
+  const toggleProductVisibility = async (id: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'published' ? 'draft' : 'published';
+    const { error } = await supabase.from('products').update({ status: newStatus }).eq('id', id);
     if (!error) {
-      toast({ title: "Order Updated!", description: "Changes saved successfully." });
-      fetchOrders();
-    } else {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      setProducts(products.map(p => p.id === id ? { ...p, status: newStatus } : p));
+      toast({ title: `Product moved to ${newStatus}` });
     }
   };
 
-  // 2. INSTANT PAYMENT UPDATE: Ikkada update chesthe customer checkout page lo maripothundi
-  const updatePaymentMethods = async () => {
+  const deleteProduct = async (id: string) => {
+    if (confirm("Ee product ni delete cheyamantara?")) {
+      const { error } = await supabase.from('products').delete().eq('id', id);
+      if (!error) {
+        setProducts(products.filter(p => p.id !== id));
+        toast({ title: "Product Deleted" });
+      }
+    }
+  };
+
+  // 3. ORDER & TRACKING ACTIONS
+  const updateOrder = async (orderId: string, status: string, trackingId: string) => {
+    const { error } = await supabase
+      .from('orders')
+      .update({ status, tracking_id: trackingId })
+      .eq('id', orderId);
+
+    if (!error) {
+      toast({ title: "Order Updated", description: "Customer can see the status now." });
+      fetchAllData();
+    }
+  };
+
+  // 4. SETTINGS ACTIONS
+  const saveSettings = async () => {
     const { error } = await supabase
       .from('site_settings')
-      .update({ payment_data: paymentSettings })
+      .update({ upi_id: settings.upi_id, bank_details: settings.bank_details })
       .eq('id', 'master_config');
-    
-    if (!error) toast({ title: "Payment Methods Updated Live!" });
+
+    if (!error) {
+      toast({ title: "Settings Saved Live!" });
+    } else {
+      toast({ title: "Error saving settings", variant: "destructive" });
+    }
   };
 
   return (
     <div className="flex min-h-screen bg-slate-50">
-      {/* Navigation Sidebar */}
-      <nav className="w-64 bg-slate-900 text-white p-6 space-y-4">
-        <h1 className="text-xl font-bold mb-8">Store Manager Pro</h1>
-        <button onClick={() => setActiveTab('orders')} className={`w-full flex p-3 rounded ${activeTab === 'orders' ? 'bg-blue-600' : ''}`}><ShoppingCart className="mr-2"/> Orders</button>
-        <button onClick={() => setActiveTab('products')} className={`w-full flex p-3 rounded ${activeTab === 'products' ? 'bg-blue-600' : ''}`}><Package className="mr-2"/> Products</button>
-        <button onClick={() => setActiveTab('settings')} className={`w-full flex p-3 rounded ${activeTab === 'settings' ? 'bg-blue-600' : ''}`}><Settings className="mr-2"/> Settings & UPI</button>
-      </nav>
-
-      <main className="flex-1 p-8">
-        {activeTab === 'orders' && (
-          <div className="space-y-4">
-            <h2 className="text-2xl font-bold">Live Orders</h2>
-            {orders.map(order => (
-              <div key={order.id} className="bg-white p-6 rounded-xl shadow-sm border flex justify-between items-center">
-                <div>
-                  <p className="font-mono text-sm text-gray-500">#{order.id.slice(0,8)}</p>
-                  <p className="font-bold text-lg">₹{order.total_amount}</p>
-                  <p className="text-sm text-blue-600">{order.customer_name}</p>
-                </div>
-                <div className="flex gap-4 items-center">
-                  <Input 
-                    placeholder="Tracking ID (BlueDart)" 
-                    className="w-48"
-                    defaultValue={order.tracking_id}
-                    onBlur={(e) => updateOrderField(order.id, { tracking_id: e.target.value })}
-                  />
-                  <select 
-                    className="border p-2 rounded"
-                    value={order.status}
-                    onChange={(e) => updateOrderField(order.id, { status: e.target.value })}
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="shipped">Shipped</option>
-                    <option value="delivered">Delivered</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
-                  <Button variant="outline" size="icon" title="View Receipt"><Receipt className="w-4 h-4"/></Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {activeTab === 'settings' && (
-          <div className="max-w-md bg-white p-8 rounded-2xl shadow-lg border">
-            <h2 className="text-xl font-bold mb-6">Payment & Admin Settings</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium">Your UPI ID (For Customer Payments)</label>
-                <Input 
-                  value={paymentSettings.upi_id} 
-                  onChange={e => setPaymentSettings({...paymentSettings, upi_id: e.target.value})}
-                  placeholder="name@okaxis"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Bank Details (Optional)</label>
-                <textarea 
-                  className="w-full border rounded-md p-2 h-24 text-sm"
-                  value={paymentSettings.bank_details}
-                  onChange={e => setPaymentSettings({...paymentSettings, bank_details: e.target.value})}
-                  placeholder="Bank: HDFC, Acc: 123..."
-                />
-              </div>
-              <Button onClick={updatePaymentMethods} className="w-full bg-green-600 hover:bg-green-700">
-                <Save className="mr-2 w-4 h-4"/> Update Live Store
-              </Button>
-            </div>
-          </div>
-        )}
-      </main>
-    </div>
-  );
-}
+      {/* SIDEBAR NAVIGATION */}
+      <aside className="w-64 bg-slate-900 text-white p-6 hidden md:block">
+        <div className="flex items-center gap-2 mb-10 text-blue-400">
+          <LayoutDashboard size={28} />
+          <span className="text-xl font-bold text-white">Store Admin</span>
+        </div>
+        <nav className="space-y-2">
+          <button onClick={() => setActiveTab('orders')} className={
