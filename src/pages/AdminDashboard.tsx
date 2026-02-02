@@ -1,154 +1,130 @@
+// components/AdminDashboard.tsx
 import { useState, useEffect } from 'react';
-import { Package, ShoppingCart, Plus, Trash2, Edit, Bell, Save, Eye, EyeOff, Truck } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { notifications } from '@/lib/notifications';
+import { 
+  LayoutDashboard, Package, ShoppingCart, Settings, 
+  Plus, Save, Trash2, Eye, EyeOff, CheckCircle, XCircle 
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { storage } from '@/lib/storage';
-import { notifications } from '@/lib/notifications';
 import { useToast } from '@/hooks/use-toast';
-import { Product, Order } from '@/types';
 
 export function AdminDashboard() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'products' | 'orders'>('products');
-  const [products, setProducts] = useState<Product[]>(storage.getProducts());
-  const [orders, setOrders] = useState<Order[]>(storage.getOrders());
-  const [newOrdersCount, setNewOrdersCount] = useState(0);
+  const [activeTab, setActiveTab] = useState('orders');
+  const [orders, setOrders] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [paymentSettings, setPaymentSettings] = useState({ upi_id: '', bank_details: '' });
 
-  // FEATURE: LIVE MONITORING
+  // 1. LIVE SYNC: Customer order ivvagane ventane sound/alert ravalante:
   useEffect(() => {
-    const checkOrders = () => {
-      const currentOrders = storage.getOrders();
-      const newOnes = notifications.getNewOrdersCount(currentOrders);
-      
-      if (newOnes > 0 && newOnes !== newOrdersCount) {
-        setNewOrdersCount(newOnes);
-        notifications.playSound(); 
-        notifications.showNotification('New Order Received! 🛒', `You have ${newOnes} new orders.`);
-      }
-      setOrders(currentOrders);
-    };
+    fetchInitialData();
+    const subscription = supabase
+      .channel('live_updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          notifications.playSound();
+          toast({ title: "New Order Received! 🛒", description: "Check orders tab." });
+        }
+        fetchOrders();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(subscription); };
+  }, []);
 
-    const timer = setInterval(checkOrders, 3000); // 3 seconds ki okasari check chesthundhi
-    return () => clearInterval(timer);
-  }, [newOrdersCount]);
-
-  // FEATURE: INSTANT SYNC (Visibility Toggle)
-  const toggleVisibility = (id: string, currentStatus: string) => {
-    const newStatus = currentStatus === 'published' ? 'draft' : 'published';
-    storage.updateProduct(id, { status: newStatus as any });
-    setProducts(storage.getProducts()); 
-    toast({ title: `Product status: ${newStatus.toUpperCase()}` });
+  const fetchInitialData = async () => {
+    const { data: ord } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+    const { data: prod } = await supabase.from('products').select('*');
+    const { data: sett } = await supabase.from('site_settings').select('*').single();
+    setOrders(ord || []);
+    setProducts(prod || []);
+    if (sett) setPaymentSettings(sett.payment_data);
   };
 
-  // FEATURE: ORDER TRACKING UPDATE
-  const updateOrder = (orderId: string, status: string, tracking: string) => {
-    storage.updateOrder(orderId, { status: status as any, trackingNumber: tracking });
-    setOrders(storage.getOrders());
-    toast({ title: "Order & Tracking Updated!" });
+  // 2. INSTANT PAYMENT UPDATE: Ikkada update chesthe customer checkout page lo maripothundi
+  const updatePaymentMethods = async () => {
+    const { error } = await supabase
+      .from('site_settings')
+      .update({ payment_data: paymentSettings })
+      .eq('id', 'master_config');
+    
+    if (!error) toast({ title: "Payment Methods Updated Live!" });
   };
 
   return (
-    <div className="container mx-auto p-4 max-w-6xl">
-      <div className="flex justify-between items-center mb-8 border-b pb-4">
-        <h1 className="text-3xl font-extrabold">Admin Control Panel</h1>
-        <div className="flex bg-gray-100 p-1 rounded-lg">
-          <button 
-            onClick={() => setActiveTab('products')}
-            className={`px-6 py-2 rounded-md transition ${activeTab === 'products' ? 'bg-white shadow text-primary' : 'text-gray-500'}`}
-          >
-            Products
-          </button>
-          <button 
-            onClick={() => {
-              setActiveTab('orders');
-              setNewOrdersCount(0);
-              notifications.updateLastOrderCheck();
-            }}
-            className={`px-6 py-2 rounded-md transition relative ${activeTab === 'orders' ? 'bg-white shadow text-primary' : 'text-gray-500'}`}
-          >
-            Orders History
-            {newOrdersCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full animate-bounce">
-                {newOrdersCount}
-              </span>
-            )}
-          </button>
-        </div>
-      </div>
+    <div className="flex min-h-screen bg-slate-50">
+      {/* Navigation Sidebar */}
+      <nav className="w-64 bg-slate-900 text-white p-6 space-y-4">
+        <h1 className="text-xl font-bold mb-8">Store Manager Pro</h1>
+        <button onClick={() => setActiveTab('orders')} className={`w-full flex p-3 rounded ${activeTab === 'orders' ? 'bg-blue-600' : ''}`}><ShoppingCart className="mr-2"/> Orders</button>
+        <button onClick={() => setActiveTab('products')} className={`w-full flex p-3 rounded ${activeTab === 'products' ? 'bg-blue-600' : ''}`}><Package className="mr-2"/> Products</button>
+        <button onClick={() => setActiveTab('settings')} className={`w-full flex p-3 rounded ${activeTab === 'settings' ? 'bg-blue-600' : ''}`}><Settings className="mr-2"/> Settings & UPI</button>
+      </nav>
 
-      {activeTab === 'products' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {products.map(p => (
-            <div key={p.id} className="bg-white border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition">
-              <div className="relative h-40">
-                <img src={p.image} className="w-full h-full object-cover" alt={p.name} />
-                <button 
-                  onClick={() => toggleVisibility(p.id, p.status)}
-                  className={`absolute top-2 right-2 p-2 rounded-full shadow-lg ${p.status === 'published' ? 'bg-green-500 text-white' : 'bg-gray-400 text-white'}`}
-                >
-                  {p.status === 'published' ? <Eye size={18} /> : <EyeOff size={18} />}
-                </button>
-              </div>
-              <div className="p-4">
-                <h3 className="font-bold text-lg">{p.name}</h3>
-                <p className="text-primary font-bold text-xl">₹{p.price}</p>
-                <div className="flex gap-2 mt-4">
-                  <Button variant="outline" className="flex-1" size="sm"><Edit size={14} className="mr-2"/> Edit</Button>
-                  <Button variant="destructive" size="sm" onClick={() => { storage.deleteProduct(p.id); setProducts(storage.getProducts()); }}><Trash2 size={14}/></Button>
+      <main className="flex-1 p-8">
+        {activeTab === 'orders' && (
+          <div className="space-y-4">
+            <h2 className="text-2xl font-bold">Live Orders</h2>
+            {orders.map(order => (
+              <div key={order.id} className="bg-white p-6 rounded-xl shadow-sm border flex justify-between items-center">
+                <div>
+                  <p className="font-mono text-sm text-gray-500">#{order.id.slice(0,8)}</p>
+                  <p className="font-bold text-lg">₹{order.total_amount}</p>
+                  <p className="text-sm text-blue-600">{order.customer_name}</p>
+                </div>
+                <div className="flex gap-4 items-center">
+                  <Input 
+                    placeholder="Tracking ID (BlueDart)" 
+                    className="w-48"
+                    defaultValue={order.tracking_id}
+                    onBlur={(e) => updateOrderField(order.id, { tracking_id: e.target.value })}
+                  />
+                  <select 
+                    className="border p-2 rounded"
+                    value={order.status}
+                    onChange={(e) => updateOrderField(order.id, { status: e.target.value })}
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="shipped">Shipped</option>
+                    <option value="delivered">Delivered</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                  <Button variant="outline" size="icon" title="View Receipt"><Receipt className="w-4 h-4"/></Button>
                 </div>
               </div>
+            ))}
+          </div>
+        )}
+
+        {activeTab === 'settings' && (
+          <div className="max-w-md bg-white p-8 rounded-2xl shadow-lg border">
+            <h2 className="text-xl font-bold mb-6">Payment & Admin Settings</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Your UPI ID (For Customer Payments)</label>
+                <Input 
+                  value={paymentSettings.upi_id} 
+                  onChange={e => setPaymentSettings({...paymentSettings, upi_id: e.target.value})}
+                  placeholder="name@okaxis"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Bank Details (Optional)</label>
+                <textarea 
+                  className="w-full border rounded-md p-2 h-24 text-sm"
+                  value={paymentSettings.bank_details}
+                  onChange={e => setPaymentSettings({...paymentSettings, bank_details: e.target.value})}
+                  placeholder="Bank: HDFC, Acc: 123..."
+                />
+              </div>
+              <Button onClick={updatePaymentMethods} className="w-full bg-green-600 hover:bg-green-700">
+                <Save className="mr-2 w-4 h-4"/> Update Live Store
+              </Button>
             </div>
-          ))}
-        </div>
-      )}
-
-      {activeTab === 'orders' && (
-        <div className="space-y-4">
-          {orders.length === 0 ? <p className="text-center py-20 text-gray-400">No orders found.</p> : 
-            orders.map(order => (
-              <div key={order.id} className="bg-white border rounded-xl p-5 shadow-sm">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <span className="text-xs font-mono text-gray-400">ORDER #{order.id}</span>
-                    <h4 className="font-bold text-lg">₹{order.totalAmount}</h4>
-                  </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${order.status === 'delivered' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
-                    {order.status}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
-                  <div className="space-y-2">
-                    <Label>Change Status</Label>
-                    <select 
-                      className="w-full border rounded-lg p-2 bg-gray-50"
-                      value={order.status}
-                      onChange={(e) => updateOrder(order.id, e.target.value, order.trackingNumber || '')}
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="confirmed">Confirmed</option>
-                      <option value="shipped">Shipped</option>
-                      <option value="delivered">Delivered</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Tracking ID (BlueDart/Delhivery)</Label>
-                    <div className="flex gap-2">
-                      <Input 
-                        placeholder="Ex: 123456789" 
-                        defaultValue={order.trackingNumber}
-                        onBlur={(e) => updateOrder(order.id, order.status, e.target.value)}
-                      />
-                      <Button size="icon"><Save size={16}/></Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))
-          }
-        </div>
-      )}
+          </div>
+        )}
+      </main>
     </div>
   );
 }
