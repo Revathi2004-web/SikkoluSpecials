@@ -1,87 +1,78 @@
-import { useState, useEffect } from 'react';
-import { ProductCard } from '@/components/features/ProductCard';
-import { CategoryFilter } from '@/components/layout/CategoryFilter';
-import { OrderForm } from '@/components/forms/OrderForm';
-import { ProductModal } from '@/components/features/ProductModal';
-import { Product } from '@/types';
-import { supabase } from '@/lib/supabaseClient';
+import React from 'react';
+import { ShoppingCart, Eye } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
-export function HomePage() {
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+interface Product {
+  id: string | number;
+  name: string;
+  price: number;
+  image?: string;
+  image_url?: string;
+  description?: string;
+}
 
-  useEffect(() => {
-    async function fetchFromSupabase() {
-      setLoading(true);
-      // Database nundi data testhunnam
-      const { data, error } = await supabase.from('products').select('*');
-      
-      if (!error && data) {
-        // Category column database lo unte idhi pani chestundi, lekapothe motham data chupisthundi
-        const filtered = selectedCategory === 'all' 
-          ? data 
-          : data.filter(p => p.category === selectedCategory);
-        setProducts(filtered);
-      } else {
-        console.error("Error fetching products:", error);
-      }
-      setLoading(false);
-    }
-    fetchFromSupabase();
-  }, [selectedCategory]);
+interface ProductCardProps {
+  product: Product;
+  onBuyNow?: (product: Product) => void; // HomePage props ki match chesa
+  onViewDetails?: (product: Product) => void; // HomePage props ki match chesa
+}
+
+export function ProductCard({ product, onBuyNow, onViewDetails }: ProductCardProps) {
+  // Database column 'image' leda 'image_url' edi unna panichestundi
+  const productImage = product.image || product.image_url || 'https://via.placeholder.com/300?text=Sikkolu+Specials';
 
   return (
-    <div className="min-h-screen pb-12 bg-gray-50">
-      <div className="bg-slate-900 text-white py-16 text-center shadow-lg">
-        <h1 className="text-5xl font-black tracking-tight">Sikkolu Specials</h1>
-        <p className="mt-4 text-slate-300 text-lg">Authentic Srikakulam Treasures Delivered to Your Home</p>
+    <div className="group bg-white rounded-2xl shadow-md overflow-hidden border border-gray-100 hover:shadow-xl transition-all duration-300 flex flex-col h-full">
+      {/* Product Image Section */}
+      <div className="relative h-56 overflow-hidden bg-gray-100 cursor-pointer" onClick={() => onViewDetails?.(product)}>
+        <img
+          src={productImage}
+          alt={product.name}
+          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+          onError={(e) => {
+            e.currentTarget.src = 'https://via.placeholder.com/300?text=Image+Not+Found';
+          }}
+        />
+        {/* Eye Icon Button */}
+        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation(); // Image click event avvakunda
+              onViewDetails?.(product);
+            }}
+            className="p-2 bg-white rounded-full shadow-lg hover:bg-blue-600 hover:text-white transition-colors"
+          >
+            <Eye size={18} />
+          </button>
+        </div>
       </div>
 
-      <div className="container mx-auto px-4 -mt-8">
-        <CategoryFilter selectedCategory={selectedCategory} onSelectCategory={setSelectedCategory} />
+      {/* Product Details Section */}
+      <div className="p-5 flex flex-col flex-grow">
+        <h3 className="text-lg font-bold text-gray-800 mb-1 line-clamp-1">{product.name}</h3>
+        <p className="text-sm text-gray-500 mb-4 line-clamp-2 min-h-[40px]">
+          {product.description || "Fresh and authentic Srikakulam special product."}
+        </p>
         
-        {loading ? (
-          <div className="flex justify-center items-center py-20">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mt-10">
-            {products.length > 0 ? (
-              products.map((p) => (
-                <ProductCard 
-                  key={p.id} 
-                  product={p} 
-                  // Ikkada ProductCard props match avvali
-                  onAddToCart={() => setSelectedProduct(p)} 
-                />
-              ))
-            ) : (
-              <div className="col-span-full text-center py-20 text-gray-400">
-                No products found in this category.
-              </div>
+        <div className="mt-auto">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-2xl font-black text-blue-600">₹{product.price}</span>
+            {product.price === 0 && (
+              <span className="text-[10px] bg-orange-100 text-orange-600 px-2 py-1 rounded uppercase font-bold">
+                Contact for Price
+              </span>
             )}
           </div>
-        )}
-      </div>
 
-      {/* Modals & Forms */}
-      {viewingProduct && (
-        <ProductModal 
-          product={viewingProduct} 
-          onClose={() => setViewingProduct(null)} 
-          onBuyNow={setSelectedProduct} 
-        />
-      )}
-      
-      {selectedProduct && (
-        <OrderForm 
-          product={selectedProduct} 
-          onClose={() => setSelectedProduct(null)} 
-        />
-      )}
+          <Button 
+            onClick={() => onBuyNow?.(product)}
+            className="w-full bg-slate-900 hover:bg-blue-600 text-white py-6 rounded-xl flex items-center justify-center gap-2 transition-all"
+          >
+            <ShoppingCart size={18} />
+            Buy Now
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
