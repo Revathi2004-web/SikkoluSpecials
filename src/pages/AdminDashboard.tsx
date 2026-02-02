@@ -19,34 +19,15 @@ export function AdminDashboard() {
   const [admins, setAdmins] = useState<Admin[]>(storage.getAdmins());
   const [contacts, setContacts] = useState<ContactNumber[]>(storage.getContactNumbers());
   const [payments, setPayments] = useState<PaymentInfo[]>(storage.getPaymentInfo());
+  
+  // Feature: New Order Notifications
   const [newOrdersCount, setNewOrdersCount] = useState(0);
-  const [showAddAdmin, setShowAddAdmin] = useState(false);
-  const [showAddContact, setShowAddContact] = useState(false);
-  const [showAddPayment, setShowAddPayment] = useState(false);
+  
+  const [showAddProduct, setShowAddProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
-  const [newAdmin, setNewAdmin] = useState({ username: '', email: '', password: '' });
-  const [newContact, setNewContact] = useState({ label: '', number: '', isPrimary: false });
-  const [newPayment, setNewPayment] = useState({
-    type: 'upi' as 'upi' | 'bank',
-    upiId: '',
-    qrCode: '',
-    bankName: '',
-    accountNumber: '',
-    ifscCode: '',
-    accountHolder: '',
-  });
-  const [showAddProduct, setShowAddProduct] = useState(false);
-  const [newProduct, setNewProduct] = useState({
-    name: '',
-    category: 'snacks',
-    price: '',
-    mrp: '',
-    image: '',
-    description: '',
-  });
 
-  // Check for new orders and send notifications
+  // --- FEATURE: LIVE ORDER MONITORING & NOTIFICATIONS ---
   useEffect(() => {
     const checkNewOrders = () => {
       const currentOrders = storage.getOrders();
@@ -54,1108 +35,170 @@ export function AdminDashboard() {
       
       if (newCount > 0 && newCount !== newOrdersCount) {
         setNewOrdersCount(newCount);
-        notifications.playSound();
+        notifications.playSound(); // Play alert sound
         
         notifications.requestPermission().then(granted => {
           if (granted) {
             notifications.showNotification(
               'New Order Received! 🛒',
-              `You have ${newCount} new order${newCount > 1 ? 's' : ''} waiting for review.`
+              `You have ${newCount} new order(s) waiting for review.`
             );
           }
         });
       }
-      
       setOrders(currentOrders);
     };
 
-    const interval = setInterval(checkNewOrders, 3000);
-    checkNewOrders();
-
+    const interval = setInterval(checkNewOrders, 3000); // Poll every 3 seconds
     return () => clearInterval(interval);
   }, [newOrdersCount]);
 
-  const handleOrdersTabClick = () => {
-    setActiveTab('orders');
-    notifications.updateLastOrderCheck();
-    setNewOrdersCount(0);
-  };
-
-  const handleAddProduct = (e: React.FormEvent) => {
-    e.preventDefault();
+  // --- FEATURE: INSTANT PRODUCT SYNC ---
+  const handleToggleProductStatus = (product: Product) => {
+    const newStatus = product.status === 'published' ? 'draft' : 'published';
+    storage.updateProduct(product.id, { status: newStatus });
+    setProducts(storage.getProducts()); // Instant UI Update
     
-    // Validation
-    if (!newProduct.name.trim()) {
-      toast({ title: 'Product name is required', variant: 'destructive' });
-      return;
-    }
-    if (!newProduct.price || parseFloat(newProduct.price) <= 0) {
-      toast({ title: 'Valid price is required', variant: 'destructive' });
-      return;
-    }
-    if (!newProduct.image) {
-      toast({ title: 'Product image is required', variant: 'destructive' });
-      return;
-    }
-    if (!newProduct.description.trim()) {
-      toast({ title: 'Product description is required', variant: 'destructive' });
-      return;
-    }
-    
-    const product: Product = {
-      id: Date.now().toString(),
-      name: newProduct.name.trim(),
-      category: newProduct.category,
-      price: parseFloat(newProduct.price),
-      mrp: newProduct.mrp ? parseFloat(newProduct.mrp) : undefined,
-      image: newProduct.image,
-      description: newProduct.description.trim(),
-      createdAt: new Date().toISOString(),
-      status: 'published', // Default to published
-    };
-    storage.addProduct(product);
-    setProducts(storage.getProducts());
-    setNewProduct({ name: '', category: 'snacks', price: '', mrp: '', image: '', description: '' });
-    setShowAddProduct(false);
-    toast({ title: '✅ Product added and published! Visible to all users instantly.' });
-  };
-
-  const handleEditProduct = (product: Product) => {
-    setEditingProduct({ ...product });
-  };
-
-  const handleSaveProduct = () => {
-    if (!editingProduct) return;
-    
-    // Validation
-    if (!editingProduct.name.trim()) {
-      toast({ title: 'Product name is required', variant: 'destructive' });
-      return;
-    }
-    if (editingProduct.price <= 0) {
-      toast({ title: 'Valid price is required', variant: 'destructive' });
-      return;
-    }
-    if (!editingProduct.image) {
-      toast({ title: 'Product image is required', variant: 'destructive' });
-      return;
-    }
-    
-    storage.updateProduct(editingProduct.id, {
-      name: editingProduct.name.trim(),
-      category: editingProduct.category,
-      price: editingProduct.price,
-      mrp: editingProduct.mrp,
-      image: editingProduct.image,
-      description: editingProduct.description.trim(),
-      status: editingProduct.status,
+    toast({ 
+      title: newStatus === 'published' ? '✅ Product Live' : '📦 Product Hidden',
+      description: `Instant sync complete. Users ${newStatus === 'published' ? 'can now' : 'can no longer'} see this.`
     });
-    setProducts(storage.getProducts());
-    setEditingProduct(null);
-    toast({ title: '✅ Product updated! Changes are live for all users instantly.' });
   };
 
-  const handleDeleteProduct = (productId: string) => {
-    if (confirm('Are you sure you want to delete this product?')) {
-      storage.deleteProduct(productId);
-      setProducts(storage.getProducts());
-      toast({ title: 'Product deleted. Changes synced to all users.' });
-    }
-  };
-
-  const handleDeleteOrder = (orderId: string) => {
-    if (confirm('Are you sure you want to delete this order?')) {
-      storage.deleteOrder(orderId);
-      setOrders(storage.getOrders());
-      toast({ title: 'Order deleted' });
-    }
-  };
-
-  const handleDeleteAdmin = (adminId: string) => {
-    if (admins.length === 1) {
-      toast({ title: 'Cannot delete the last admin', variant: 'destructive' });
-      return;
-    }
-    if (confirm('Are you sure you want to remove this admin?')) {
-      storage.deleteAdmin(adminId);
-      setAdmins(storage.getAdmins());
-      toast({ title: 'Admin removed' });
-    }
-  };
-
-  const handleAddAdmin = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const existingAdmin = admins.find(a => a.username === newAdmin.username);
-    if (existingAdmin) {
-      toast({ title: 'Username already exists', variant: 'destructive' });
-      return;
-    }
-    
-    const admin: Admin = {
-      id: Date.now().toString(),
-      username: newAdmin.username,
-      email: newAdmin.email,
-      password: newAdmin.password,
-      role: 'admin',
-      createdAt: new Date().toISOString(),
-    };
-    
-    storage.addAdmin(admin);
-    setAdmins(storage.getAdmins());
-    setNewAdmin({ username: '', email: '', password: '' });
-    setShowAddAdmin(false);
-    toast({ title: 'New admin added successfully!' });
-  };
-
-  const handleAddContact = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const contact: ContactNumber = {
-      id: Date.now().toString(),
-      label: newContact.label,
-      number: newContact.number,
-      isPrimary: newContact.isPrimary,
-    };
-    
-    storage.addContactNumber(contact);
-    setContacts(storage.getContactNumbers());
-    setNewContact({ label: '', number: '', isPrimary: false });
-    setShowAddContact(false);
-    toast({ title: 'Contact number added!' });
-  };
-
-  const handleDeleteContact = (contactId: string) => {
-    if (confirm('Are you sure you want to delete this contact number?')) {
-      storage.deleteContactNumber(contactId);
-      setContacts(storage.getContactNumbers());
-      toast({ title: 'Contact deleted' });
-    }
-  };
-
-  const handleTogglePrimaryContact = (contactId: string) => {
-    const updatedContacts = contacts.map(c => ({
-      ...c,
-      isPrimary: c.id === contactId ? !c.isPrimary : c.isPrimary,
-    }));
-    updatedContacts.forEach(c => storage.updateContactNumber(c.id, { isPrimary: c.isPrimary }));
-    setContacts(storage.getContactNumbers());
-    toast({ title: 'Contact updated' });
-  };
-
-  const handleAddPayment = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const payment: PaymentInfo = {
-      id: Date.now().toString(),
-      type: newPayment.type,
-      ...(newPayment.type === 'upi' ? {
-        upiId: newPayment.upiId,
-        qrCode: newPayment.qrCode,
-      } : {
-        bankName: newPayment.bankName,
-        accountNumber: newPayment.accountNumber,
-        ifscCode: newPayment.ifscCode,
-        accountHolder: newPayment.accountHolder,
-      }),
-      isActive: true,
-    };
-    
-    storage.addPaymentInfo(payment);
-    setPayments(storage.getPaymentInfo());
-    setNewPayment({
-      type: 'upi',
-      upiId: '',
-      qrCode: '',
-      bankName: '',
-      accountNumber: '',
-      ifscCode: '',
-      accountHolder: '',
-    });
-    setShowAddPayment(false);
-    toast({ title: 'Payment method added!' });
-  };
-
-  const handleTogglePaymentActive = (paymentId: string) => {
-    const payment = payments.find(p => p.id === paymentId);
-    if (payment) {
-      storage.updatePaymentInfo(paymentId, { isActive: !payment.isActive });
-      setPayments(storage.getPaymentInfo());
-      toast({ title: payment.isActive ? 'Payment method disabled' : 'Payment method enabled' });
-    }
-  };
-
-  const handleDeletePayment = (paymentId: string) => {
-    if (confirm('Are you sure you want to delete this payment method?')) {
-      storage.deletePaymentInfo(paymentId);
-      setPayments(storage.getPaymentInfo());
-      toast({ title: 'Payment method deleted' });
-    }
+  // --- FEATURE: ORDER TRANSACTION & TRACKING ---
+  const handleUpdateOrder = (orderId: string, updates: Partial<Order>) => {
+    storage.updateOrder(orderId, updates);
+    setOrders(storage.getOrders());
+    setEditingOrder(null);
+    toast({ title: 'Order Updated', description: 'Transaction history and status updated.' });
   };
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8">Admin Dashboard</h1>
-
-      <div className="grid md:grid-cols-5 gap-4 mb-8">
-        <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-primary">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Total Products</p>
-              <p className="text-3xl font-bold">{products.length}</p>
-            </div>
-            <Package className="w-10 h-10 text-primary opacity-20" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-green-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Total Orders</p>
-              <p className="text-3xl font-bold">{orders.length}</p>
-            </div>
-            <ShoppingCart className="w-10 h-10 text-green-500 opacity-20" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-blue-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Total Admins</p>
-              <p className="text-3xl font-bold">{admins.length}</p>
-            </div>
-            <Users className="w-10 h-10 text-blue-500 opacity-20" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-purple-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Contact Numbers</p>
-              <p className="text-3xl font-bold">{contacts.length}</p>
-            </div>
-            <Phone className="w-10 h-10 text-purple-500 opacity-20" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-orange-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Payment Methods</p>
-              <p className="text-3xl font-bold">{payments.filter(p => p.isActive).length}</p>
-            </div>
-            <CreditCard className="w-10 h-10 text-orange-500 opacity-20" />
-          </div>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+        {/* Notification Bell */}
+        <div className="relative">
+          <Bell className={`w-6 h-6 ${newOrdersCount > 0 ? 'text-red-500 animate-bounce' : 'text-gray-400'}`} />
+          {newOrdersCount > 0 && (
+            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] px-1.5 rounded-full">
+              {newOrdersCount}
+            </span>
+          )}
         </div>
       </div>
 
+      {/* Stats Cards... (Keep your existing grid here) */}
+
       <div className="bg-white rounded-lg shadow-md">
-        <div className="border-b overflow-x-auto">
-          <div className="flex min-w-max">
-            <button
-              onClick={() => setActiveTab('products')}
-              className={`px-6 py-3 font-medium whitespace-nowrap ${
-                activeTab === 'products'
-                  ? 'text-primary border-b-2 border-primary'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Products
-            </button>
-            <button
-              onClick={handleOrdersTabClick}
-              className={`px-6 py-3 font-medium relative whitespace-nowrap ${
-                activeTab === 'orders'
-                  ? 'text-primary border-b-2 border-primary'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                Orders
-                {newOrdersCount > 0 && (
-                  <span className="flex items-center gap-1">
-                    <Bell className="w-4 h-4 animate-pulse" />
-                    <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">
-                      {newOrdersCount}
-                    </span>
-                  </span>
-                )}
-              </span>
-            </button>
-            <button
-              onClick={() => setActiveTab('payments')}
-              className={`px-6 py-3 font-medium whitespace-nowrap ${
-                activeTab === 'payments'
-                  ? 'text-primary border-b-2 border-primary'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Payments
-            </button>
-            <button
-              onClick={() => setActiveTab('admins')}
-              className={`px-6 py-3 font-medium whitespace-nowrap ${
-                activeTab === 'admins'
-                  ? 'text-primary border-b-2 border-primary'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Admins
-            </button>
-            <button
-              onClick={() => setActiveTab('contacts')}
-              className={`px-6 py-3 font-medium whitespace-nowrap ${
-                activeTab === 'contacts'
-                  ? 'text-primary border-b-2 border-primary'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Contacts
-            </button>
-          </div>
+        <div className="border-b flex overflow-x-auto">
+           {/* Tab buttons... ensure 'orders' button calls notifications.updateLastOrderCheck() */}
+           <button 
+            onClick={() => { setActiveTab('orders'); setNewOrdersCount(0); notifications.updateLastOrderCheck(); }}
+            className={`px-6 py-3 ${activeTab === 'orders' ? 'border-b-2 border-primary text-primary' : ''}`}
+           >
+            Orders History
+           </button>
+           <button onClick={() => setActiveTab('products')} className={`px-6 py-3 ${activeTab === 'products' ? 'border-b-2 border-primary' : ''}`}>
+             Products
+           </button>
         </div>
 
         <div className="p-6">
-          {activeTab === 'products' && (
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-semibold">Manage Products</h2>
-                <Button onClick={() => setShowAddProduct(!showAddProduct)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Product
-                </Button>
-              </div>
-
-              {showAddProduct && (
-                <form onSubmit={handleAddProduct} className="bg-muted p-4 rounded-lg mb-6 space-y-4">
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="productName">Product Name *</Label>
-                      <Input
-                        id="productName"
-                        required
-                        value={newProduct.name}
-                        onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="category">Category *</Label>
-                      <select
-                        id="category"
-                        required
-                        value={newProduct.category}
-                        onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      >
-                        {CATEGORIES.map(cat => (
-                          <option key={cat.id} value={cat.id}>{cat.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="price">Sale Price (₹) *</Label>
-                      <Input
-                        id="price"
-                        type="number"
-                        required
-                        value={newProduct.price}
-                        onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="mrp">MRP (₹)</Label>
-                      <Input
-                        id="mrp"
-                        type="number"
-                        value={newProduct.mrp}
-                        onChange={(e) => setNewProduct({ ...newProduct, mrp: e.target.value })}
-                        placeholder="Original price"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Product Image *</Label>
-                    <ImageUpload
-                      value={newProduct.image}
-                      onChange={(imageData) => setNewProduct({ ...newProduct, image: imageData })}
-                      onRemove={() => setNewProduct({ ...newProduct, image: '' })}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="description">Description *</Label>
-                    <Textarea
-                      id="description"
-                      required
-                      value={newProduct.description}
-                      onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button type="submit">Add Product</Button>
-                    <Button type="button" variant="outline" onClick={() => setShowAddProduct(false)}>
-                      Cancel
-                    </Button>
-                  </div>
-                </form>
-              )}
-
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {products.map((product) => (
-                  <div key={product.id} className="border rounded-lg overflow-hidden">
-                    {editingProduct?.id === product.id ? (
-                      <div className="p-4 space-y-3">
-                        <ImageUpload
-                          value={editingProduct.image}
-                          onChange={(imageData) => setEditingProduct({ ...editingProduct, image: imageData })}
-                          onRemove={() => setEditingProduct({ ...editingProduct, image: '' })}
-                        />
-                        <Input
-                          value={editingProduct.name}
-                          onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                          placeholder="Product name"
-                        />
-                        <select
-                          value={editingProduct.category}
-                          onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value })}
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        >
-                          {CATEGORIES.map(cat => (
-                            <option key={cat.id} value={cat.id}>{cat.name}</option>
-                          ))}
-                        </select>
-                        <div className="grid grid-cols-2 gap-2">
-                          <Input
-                            type="number"
-                            value={editingProduct.price}
-                            onChange={(e) => setEditingProduct({ ...editingProduct, price: parseFloat(e.target.value) })}
-                            placeholder="Sale Price"
-                          />
-                          <Input
-                            type="number"
-                            value={editingProduct.mrp || ''}
-                            onChange={(e) => setEditingProduct({ ...editingProduct, mrp: e.target.value ? parseFloat(e.target.value) : undefined })}
-                            placeholder="MRP"
-                          />
-                        </div>
-                        <Textarea
-                          value={editingProduct.description}
-                          onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })}
-                          placeholder="Description"
-                        />
-                        <div className="flex gap-2">
-                          <Button onClick={handleSaveProduct} size="sm">
-                            <Save className="w-4 h-4 mr-1" />
-                            Save
-                          </Button>
-                          <Button onClick={() => setEditingProduct(null)} variant="outline" size="sm">
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="relative">
-                          <img src={product.image} alt={product.name} className="w-full h-40 object-cover" />
-                          <button
-                            onClick={() => {
-                              storage.updateProduct(product.id, { status: product.status === 'published' ? 'draft' : 'published' });
-                              setProducts(storage.getProducts());
-                              toast({ title: product.status === 'published' ? '📦 Product unpublished (hidden from users)' : '✅ Product published (visible to users)' });
-                            }}
-                            className={`absolute top-2 right-2 p-2 rounded-full shadow-lg ${
-                              product.status === 'published' 
-                                ? 'bg-green-500 hover:bg-green-600' 
-                                : 'bg-gray-500 hover:bg-gray-600'
-                            } text-white transition-colors`}
-                            title={product.status === 'published' ? 'Click to unpublish' : 'Click to publish'}
-                          >
-                            {product.status === 'published' ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                          </button>
-                        </div>
-                        <div className="p-4">
-                          <h3 className="font-semibold mb-1">{product.name}</h3>
-                          <p className="text-xs text-muted-foreground mb-2 capitalize">{product.category}</p>
-                          <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{product.description}</p>
-                          <div className="flex items-center justify-between mb-3">
-                            <div>
-                              <span className="font-bold text-primary">₹{product.price}</span>
-                              {product.mrp && product.mrp > product.price && (
-                                <span className="text-xs text-muted-foreground line-through ml-2">₹{product.mrp}</span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {product.rating && (
-                                <span className="text-xs text-muted-foreground">⭐ {product.rating}</span>
-                              )}
-                              <span className={`text-xs px-2 py-0.5 rounded ${
-                                product.status === 'published' 
-                                  ? 'bg-green-100 text-green-700' 
-                                  : 'bg-gray-100 text-gray-700'
-                              }`}>
-                                {product.status === 'published' ? 'Live' : 'Draft'}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleEditProduct(product)}
-                              className="flex-1"
-                            >
-                              <Edit className="w-4 h-4 mr-1" />
-                              Edit
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleDeleteProduct(product.id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
+          {/* ORDERS TAB: Transaction History & Status */}
           {activeTab === 'orders' && (
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-semibold">Transaction History</h2>
-                {newOrdersCount > 0 && (
-                  <div className="bg-green-100 border border-green-300 px-4 py-2 rounded-lg flex items-center gap-2">
-                    <Bell className="w-4 h-4 text-green-600" />
-                    <span className="text-sm font-medium text-green-700">
-                      {newOrdersCount} new order{newOrdersCount > 1 ? 's' : ''}!
-                    </span>
-                  </div>
-                )}
-              </div>
-              <div className="space-y-4">
-                {orders.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">No orders yet</p>
-                ) : (
-                  orders.map((order) => (
-                    <div key={order.id} className="border rounded-lg overflow-hidden">
-                      {editingOrder?.id === order.id ? (
-                        <div className="p-4 bg-muted space-y-3">
-                          <h3 className="font-semibold">Update Order #{order.id}</h3>
-                          <div className="grid md:grid-cols-2 gap-4">
-                            <div>
-                              <Label>Order Status</Label>
-                              <select
-                                value={editingOrder.status}
-                                onChange={(e) => setEditingOrder({ ...editingOrder, status: e.target.value as Order['status'] })}
-                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                              >
-                                <option value="pending">Pending</option>
-                                <option value="confirmed">Confirmed</option>
-                                <option value="processing">Processing</option>
-                                <option value="shipped">Shipped</option>
-                                <option value="delivered">Delivered</option>
-                                <option value="cancelled">Cancelled</option>
-                              </select>
-                            </div>
-                            <div>
-                              <Label>Payment Status</Label>
-                              <select
-                                value={editingOrder.paymentStatus}
-                                onChange={(e) => setEditingOrder({ ...editingOrder, paymentStatus: e.target.value as Order['paymentStatus'] })}
-                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                              >
-                                <option value="pending">Pending</option>
-                                <option value="completed">Completed</option>
-                              </select>
-                            </div>
-                          </div>
-                          <div>
-                            <Label>Tracking Number (Optional)</Label>
-                            <Input
-                              value={editingOrder.trackingNumber || ''}
-                              onChange={(e) => setEditingOrder({ ...editingOrder, trackingNumber: e.target.value })}
-                              placeholder="e.g., 1234567890"
-                            />
-                          </div>
-                          <div className="flex gap-2">
-                            <Button onClick={() => {
-                              const updates: Partial<Order> = {
-                                status: editingOrder.status,
-                                paymentStatus: editingOrder.paymentStatus,
-                                trackingNumber: editingOrder.trackingNumber,
-                              };
-                              if (editingOrder.paymentStatus === 'completed' && !order.paymentDate) {
-                                updates.paymentDate = new Date().toISOString();
-                              }
-                              storage.updateOrder(editingOrder.id, updates);
-                              setOrders(storage.getOrders());
-                              setEditingOrder(null);
-                              toast({ title: '✅ Order updated successfully!' });
-                            }} size="sm">
-                              <Save className="w-4 h-4 mr-2" />
-                              Save Changes
-                            </Button>
-                            <Button onClick={() => setEditingOrder(null)} variant="outline" size="sm">
-                              Cancel
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="bg-gray-50 px-4 py-3 border-b flex flex-wrap gap-4 justify-between items-center">
-                            <div className="text-sm">
-                              <span className="font-medium">Order #{order.id}</span>
-                              <span className="text-muted-foreground ml-4">{new Date(order.orderDate).toLocaleDateString()}</span>
-                            </div>
-                            <div className="flex gap-2">
-                              <span className={`px-3 py-1 rounded-full text-xs font-medium border ${
-                                order.status === 'pending' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
-                                order.status === 'confirmed' ? 'bg-blue-100 text-blue-800 border-blue-300' :
-                                order.status === 'processing' ? 'bg-purple-100 text-purple-800 border-purple-300' :
-                                order.status === 'shipped' ? 'bg-orange-100 text-orange-800 border-orange-300' :
-                                order.status === 'delivered' ? 'bg-green-100 text-green-800 border-green-300' :
-                                'bg-red-100 text-red-800 border-red-300'
-                              }`}>
-                                {order.status.toUpperCase()}
-                              </span>
-                              <span className={`px-3 py-1 rounded-full text-xs font-medium border ${
-                                order.paymentStatus === 'completed' 
-                                  ? 'bg-green-100 text-green-800 border-green-300'
-                                  : 'bg-yellow-100 text-yellow-800 border-yellow-300'
-                              }`}>
-                                {order.paymentStatus === 'completed' ? 'PAID' : 'PENDING PAYMENT'}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="p-4">
-                            <div className="flex justify-between items-start mb-4">
-                              <div>
-                                <h3 className="font-semibold text-lg">{order.productName}</h3>
-                                <p className="text-sm text-muted-foreground">Quantity: {order.quantity}</p>
-                                <p className="text-2xl font-bold text-primary mt-1">₹{order.productPrice * order.quantity}</p>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteOrder(order.id)}
-                              >
-                                <Trash2 className="w-4 h-4 text-destructive" />
-                              </Button>
-                            </div>
-                            
-                            {order.trackingNumber && (
-                              <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-3">
-                                <p className="text-sm font-medium flex items-center gap-2">
-                                  <Truck className="w-4 h-4" />
-                                  Tracking: <span className="font-mono">{order.trackingNumber}</span>
-                                </p>
-                              </div>
-                            )}
-                            
-                            {order.paymentDate && (
-                              <div className="bg-green-50 border border-green-200 rounded p-3 mb-3">
-                                <p className="text-sm font-medium flex items-center gap-2">
-                                  <CheckCircle className="w-4 h-4" />
-                                  Payment Received: {new Date(order.paymentDate).toLocaleDateString()}
-                                </p>
-                              </div>
-                            )}
-                            
-                            <div className="grid md:grid-cols-2 gap-3 text-sm mb-3">
-                              <div>
-                                <p className="font-medium mb-1">Customer Details:</p>
-                                <p>{order.customerName}</p>
-                                <p>{order.phone}</p>
-                                {order.email && <p>{order.email}</p>}
-                              </div>
-                              <div>
-                                <p className="font-medium mb-1">Delivery Address:</p>
-                                <p>{order.address}</p>
-                                <p>{order.city}, {order.state} - {order.pincode}</p>
-                              </div>
-                            </div>
-                            
-                            {order.notes && (
-                              <div className="mb-3">
-                                <p className="font-medium text-sm mb-1">Special Instructions:</p>
-                                <p className="text-sm text-muted-foreground">{order.notes}</p>
-                              </div>
-                            )}
-                            
-                            {order.cancellationReason && (
-                              <div className="bg-red-50 border border-red-200 rounded p-3 mb-3">
-                                <p className="text-sm font-medium mb-1">Cancellation Reason:</p>
-                                <p className="text-sm text-muted-foreground">{order.cancellationReason}</p>
-                              </div>
-                            )}
-                            
-                            <div className="flex justify-end">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setEditingOrder({ ...order })}
-                              >
-                                <Edit className="w-4 h-4 mr-2" />
-                                Update Order
-                              </Button>
-                            </div>
-                          </div>
-                        </>
-                      )}
+            <div className="space-y-4">
+              {orders.map((order) => (
+                <div key={order.id} className="border p-4 rounded-lg bg-gray-50">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <p className="font-bold">Order #{order.id}</p>
+                      <p className="text-sm text-gray-500">{new Date(order.orderDate).toLocaleString()}</p>
                     </div>
-                  ))
-                )}
-              </div>
+                    <div className="flex flex-col items-end">
+                       <span className={`px-2 py-1 rounded text-xs font-bold ${
+                         order.status === 'delivered' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                       }`}>
+                         {order.status.toUpperCase()}
+                       </span>
+                    </div>
+                  </div>
+
+                  {/* Order Items Summary */}
+                  <div className="text-sm mb-4 border-y py-2">
+                    {order.items.map(item => (
+                      <div key={item.id} className="flex justify-between">
+                        <span>{item.name} x {item.quantity}</span>
+                        <span>₹{item.price * item.quantity}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between font-bold mt-2 pt-2 border-t">
+                      <span>Total Amount:</span>
+                      <span>₹{order.totalAmount}</span>
+                    </div>
+                  </div>
+
+                  {/* Status & Tracking Controls */}
+                  <div className="flex flex-wrap gap-4 items-end">
+                    <div className="flex-1 min-w-[200px]">
+                      <Label>Update Status & Tracking</Label>
+                      <div className="flex gap-2 mt-1">
+                        <select 
+                          className="border rounded px-2 py-1 text-sm bg-white"
+                          value={order.status}
+                          onChange={(e) => handleUpdateOrder(order.id, { status: e.target.value as any })}
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="processing">Processing</option>
+                          <option value="shipped">Shipped</option>
+                          <option value="delivered">Delivered</option>
+                        </select>
+                        <Input 
+                          placeholder="Tracking ID" 
+                          className="h-8 text-xs"
+                          defaultValue={order.trackingNumber}
+                          onBlur={(e) => handleUpdateOrder(order.id, { trackingNumber: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    <Button variant="outline" size="sm" className="text-red-500 border-red-200" onClick={() => handleDeleteOrder(order.id)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
-          {activeTab === 'payments' && (
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-semibold">Payment Methods</h2>
-                <Button onClick={() => setShowAddPayment(!showAddPayment)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Payment Method
-                </Button>
-              </div>
+          {/* PRODUCTS TAB: Logic for Instant Sync Toggling */}
+          {activeTab === 'products' && (
+            <div className="grid md:grid-cols-3 gap-4">
+              {products.map((product) => (
+                <div key={product.id} className="border rounded-lg relative">
+                  <img src={product.image} className="w-full h-32 object-cover rounded-t-lg" />
+                  
+                  {/* Floating Toggle Button for Visibility */}
+                  <button 
+                    onClick={() => handleToggleProductStatus(product)}
+                    className={`absolute top-2 right-2 p-1.5 rounded-full shadow-md transition-colors ${
+                      product.status === 'published' ? 'bg-green-500 text-white' : 'bg-gray-400 text-white'
+                    }`}
+                    title={product.status === 'published' ? "Click to Hide from Users" : "Click to Make Live"}
+                  >
+                    {product.status === 'published' ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                  </button>
 
-              {showAddPayment && (
-                <form onSubmit={handleAddPayment} className="bg-muted p-4 rounded-lg mb-6 space-y-4">
-                  <div>
-                    <Label>Payment Type *</Label>
-                    <div className="flex gap-4 mt-2">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          value="upi"
-                          checked={newPayment.type === 'upi'}
-                          onChange={(e) => setNewPayment({ ...newPayment, type: e.target.value as 'upi' })}
-                        />
-                        <span>UPI Payment</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          value="bank"
-                          checked={newPayment.type === 'bank'}
-                          onChange={(e) => setNewPayment({ ...newPayment, type: e.target.value as 'bank' })}
-                        />
-                        <span>Bank Transfer</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  {newPayment.type === 'upi' ? (
-                    <>
-                      <div>
-                        <Label htmlFor="upiId">UPI ID *</Label>
-                        <Input
-                          id="upiId"
-                          required
-                          placeholder="yourname@upi"
-                          value={newPayment.upiId}
-                          onChange={(e) => setNewPayment({ ...newPayment, upiId: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label>QR Code Image</Label>
-                        <ImageUpload
-                          value={newPayment.qrCode}
-                          onChange={(imageData) => setNewPayment({ ...newPayment, qrCode: imageData })}
-                          onRemove={() => setNewPayment({ ...newPayment, qrCode: '' })}
-                        />
-                      </div>
-                    </>
-                  ) : (
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="bankName">Bank Name *</Label>
-                        <Input
-                          id="bankName"
-                          required
-                          value={newPayment.bankName}
-                          onChange={(e) => setNewPayment({ ...newPayment, bankName: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="accountNumber">Account Number *</Label>
-                        <Input
-                          id="accountNumber"
-                          required
-                          value={newPayment.accountNumber}
-                          onChange={(e) => setNewPayment({ ...newPayment, accountNumber: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="ifscCode">IFSC Code *</Label>
-                        <Input
-                          id="ifscCode"
-                          required
-                          value={newPayment.ifscCode}
-                          onChange={(e) => setNewPayment({ ...newPayment, ifscCode: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="accountHolder">Account Holder Name *</Label>
-                        <Input
-                          id="accountHolder"
-                          required
-                          value={newPayment.accountHolder}
-                          onChange={(e) => setNewPayment({ ...newPayment, accountHolder: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex gap-2">
-                    <Button type="submit">Add Payment Method</Button>
-                    <Button type="button" variant="outline" onClick={() => setShowAddPayment(false)}>
-                      Cancel
-                    </Button>
-                  </div>
-                </form>
-              )}
-
-              <div className="space-y-3">
-                {payments.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">No payment methods added yet</p>
-                ) : (
-                  payments.map((payment) => (
-                    <div key={payment.id} className="border rounded-lg p-4">
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-3">
-                          <CreditCard className="w-5 h-5 text-primary" />
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="font-semibold">
-                                {payment.type === 'upi' ? 'UPI Payment' : 'Bank Transfer'}
-                              </p>
-                              <span className={`text-xs px-2 py-0.5 rounded ${
-                                payment.isActive 
-                                  ? 'bg-green-100 text-green-700' 
-                                  : 'bg-gray-100 text-gray-700'
-                              }`}>
-                                {payment.isActive ? 'Active' : 'Inactive'}
-                              </span>
-                            </div>
-                            {payment.type === 'upi' ? (
-                              <p className="text-sm text-muted-foreground">UPI ID: {payment.upiId}</p>
-                            ) : (
-                              <p className="text-sm text-muted-foreground">
-                                {payment.bankName} - {payment.accountNumber}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleTogglePaymentActive(payment.id)}
-                          >
-                            {payment.isActive ? 'Disable' : 'Enable'}
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleDeletePayment(payment.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                      {payment.type === 'upi' && payment.qrCode && (
-                        <div className="mt-3 flex justify-center">
-                          <img src={payment.qrCode} alt="QR Code" className="w-32 h-32 border rounded" />
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'admins' && (
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-semibold">Admin Management</h2>
-                <Button onClick={() => setShowAddAdmin(!showAddAdmin)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add New Admin
-                </Button>
-              </div>
-
-              {showAddAdmin && (
-                <form onSubmit={handleAddAdmin} className="bg-muted p-4 rounded-lg mb-6 space-y-4">
-                  <div className="grid md:grid-cols-3 gap-4">
-                    <div>
-                      <Label htmlFor="adminUsername">Username *</Label>
-                      <Input
-                        id="adminUsername"
-                        required
-                        value={newAdmin.username}
-                        onChange={(e) => setNewAdmin({ ...newAdmin, username: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="adminEmail">Email *</Label>
-                      <Input
-                        id="adminEmail"
-                        type="email"
-                        required
-                        value={newAdmin.email}
-                        onChange={(e) => setNewAdmin({ ...newAdmin, email: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="adminPassword">Password *</Label>
-                      <Input
-                        id="adminPassword"
-                        type="password"
-                        required
-                        value={newAdmin.password}
-                        onChange={(e) => setNewAdmin({ ...newAdmin, password: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button type="submit">Create Admin</Button>
-                    <Button type="button" variant="outline" onClick={() => setShowAddAdmin(false)}>
-                      Cancel
-                    </Button>
-                  </div>
-                </form>
-              )}
-
-              <div className="space-y-3">
-                {admins.map((admin) => (
-                  <div key={admin.id} className="border rounded-lg p-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-semibold text-lg">{admin.username}</p>
-                        <p className="text-sm text-muted-foreground">{admin.email}</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Created: {new Date(admin.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDeleteAdmin(admin.id)}
-                        disabled={admins.length === 1}
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Remove
+                  <div className="p-3">
+                    <h3 className="font-bold truncate">{product.name}</h3>
+                    <p className="text-primary font-bold">₹{product.price}</p>
+                    <div className="flex gap-2 mt-2">
+                      <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEditProduct(product)}>
+                        <Edit className="w-3 h-3 mr-1" /> Edit
                       </Button>
                     </div>
-                    <div className="mt-3 bg-muted/50 p-2 rounded text-xs">
-                      <p className="text-muted-foreground">Password is securely stored and hidden</p>
-                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'contacts' && (
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-semibold">Contact Numbers Management</h2>
-                <Button onClick={() => setShowAddContact(!showAddContact)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Contact Number
-                </Button>
-              </div>
-
-              {showAddContact && (
-                <form onSubmit={handleAddContact} className="bg-muted p-4 rounded-lg mb-6 space-y-4">
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="contactLabel">Label *</Label>
-                      <Input
-                        id="contactLabel"
-                        required
-                        placeholder="e.g., Customer Support, Sales"
-                        value={newContact.label}
-                        onChange={(e) => setNewContact({ ...newContact, label: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="contactNumber">Phone Number *</Label>
-                      <Input
-                        id="contactNumber"
-                        type="tel"
-                        required
-                        placeholder="+91 XXXXXXXXXX"
-                        value={newContact.number}
-                        onChange={(e) => setNewContact({ ...newContact, number: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="isPrimary"
-                      checked={newContact.isPrimary}
-                      onChange={(e) => setNewContact({ ...newContact, isPrimary: e.target.checked })}
-                      className="w-4 h-4"
-                    />
-                    <Label htmlFor="isPrimary" className="cursor-pointer">Mark as Primary Contact</Label>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button type="submit">Add Contact</Button>
-                    <Button type="button" variant="outline" onClick={() => setShowAddContact(false)}>
-                      Cancel
-                    </Button>
-                  </div>
-                </form>
-              )}
-
-              <div className="space-y-3">
-                {contacts.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">No contact numbers added yet</p>
-                ) : (
-                  contacts.map((contact) => (
-                    <div key={contact.id} className="border rounded-lg p-4 flex justify-between items-center">
-                      <div className="flex items-center gap-3">
-                        <Phone className="w-5 h-5 text-primary" />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-semibold">{contact.label}</p>
-                            {contact.isPrimary && (
-                              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">Primary</span>
-                            )}
-                          </div>
-                          <p className="text-sm text-muted-foreground">{contact.number}</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleTogglePrimaryContact(contact.id)}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteContact(contact.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-              <div className="mt-4 bg-blue-50 border border-blue-200 p-3 rounded text-sm text-blue-800">
-                <p className="font-medium">ℹ️ Contact numbers are visible to customers</p>
-                <p className="text-xs mt-1">These numbers will be displayed on the order form for customer inquiries.</p>
-              </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
