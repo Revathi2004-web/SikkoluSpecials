@@ -7,7 +7,7 @@ import { OrderForm } from '@/components/forms/OrderForm';
 import { Product } from '@/types';
 import { ShoppingBag, Search } from 'lucide-react';
 
-export default function HomePage() {
+export function HomePage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
