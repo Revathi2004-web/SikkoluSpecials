@@ -16,12 +16,17 @@ export function HomePage() {
   useEffect(() => {
     async function fetchFromSupabase() {
       setLoading(true);
+      // Database nundi data testhunnam
       const { data, error } = await supabase.from('products').select('*');
-      if (!error) {
+      
+      if (!error && data) {
+        // Category column database lo unte idhi pani chestundi, lekapothe motham data chupisthundi
         const filtered = selectedCategory === 'all' 
           ? data 
           : data.filter(p => p.category === selectedCategory);
-        setProducts(filtered || []);
+        setProducts(filtered);
+      } else {
+        console.error("Error fetching products:", error);
       }
       setLoading(false);
     }
@@ -29,23 +34,54 @@ export function HomePage() {
   }, [selectedCategory]);
 
   return (
-    <div className="min-h-screen pb-12">
-      <div className="bg-primary text-primary-foreground py-16 text-center">
-        <h1 className="text-4xl font-bold">Sikkolu Specials</h1>
-        <p className="mt-2 text-lg">Discovery traditional Srikakulam treasures</p>
+    <div className="min-h-screen pb-12 bg-gray-50">
+      <div className="bg-slate-900 text-white py-16 text-center shadow-lg">
+        <h1 className="text-5xl font-black tracking-tight">Sikkolu Specials</h1>
+        <p className="mt-4 text-slate-300 text-lg">Authentic Srikakulam Treasures Delivered to Your Home</p>
       </div>
-      <CategoryFilter selectedCategory={selectedCategory} onSelectCategory={setSelectedCategory} />
-      <div className="container mx-auto px-4 mt-8">
-        {loading ? ( <div className="text-center py-10">Loading...</div> ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {products.map((p) => (
-              <ProductCard key={p.id} product={p} onBuyNow={setSelectedProduct} onViewDetails={setViewingProduct} />
-            ))}
+
+      <div className="container mx-auto px-4 -mt-8">
+        <CategoryFilter selectedCategory={selectedCategory} onSelectCategory={setSelectedCategory} />
+        
+        {loading ? (
+          <div className="flex justify-center items-center py-20">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mt-10">
+            {products.length > 0 ? (
+              products.map((p) => (
+                <ProductCard 
+                  key={p.id} 
+                  product={p} 
+                  // Ikkada ProductCard props match avvali
+                  onAddToCart={() => setSelectedProduct(p)} 
+                />
+              ))
+            ) : (
+              <div className="col-span-full text-center py-20 text-gray-400">
+                No products found in this category.
+              </div>
+            )}
           </div>
         )}
       </div>
-      {viewingProduct && <ProductModal product={viewingProduct} onClose={() => setViewingProduct(null)} onBuyNow={setSelectedProduct} />}
-      {selectedProduct && <OrderForm product={selectedProduct} onClose={() => setSelectedProduct(null)} />}
+
+      {/* Modals & Forms */}
+      {viewingProduct && (
+        <ProductModal 
+          product={viewingProduct} 
+          onClose={() => setViewingProduct(null)} 
+          onBuyNow={setSelectedProduct} 
+        />
+      )}
+      
+      {selectedProduct && (
+        <OrderForm 
+          product={selectedProduct} 
+          onClose={() => setSelectedProduct(null)} 
+        />
+      )}
     </div>
   );
 }
