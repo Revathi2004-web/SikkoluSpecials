@@ -1,78 +1,154 @@
-import React from 'react';
-import { ShoppingCart, Eye } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Search, ShoppingBag } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { storage } from '@/lib/storage';
+import { Product } from '@/types';
+import { ProductCard } from '@/components/features/ProductCard';
+import { ProductModal } from '@/components/features/ProductModal';
+import { ChatBot } from '@/components/features/ChatBot';
+import { CategoryFilter } from '@/components/layout/CategoryFilter';
+import { useCartStore } from '@/stores/cartStore';
+import { useNavigate } from 'react-router-dom';
+import { useToast } from '@/hooks/use-toast';
 
-interface Product {
-  id: string | number;
-  name: string;
-  price: number;
-  image?: string;
-  image_url?: string;
-  description?: string;
-}
+export function HomePage() {
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const lastProductsRef = useRef<Product[]>([]);
+  const { addItem, items } = useCartStore();
 
-interface ProductCardProps {
-  product: Product;
-  onBuyNow?: (product: Product) => void; // HomePage props ki match chesa
-  onViewDetails?: (product: Product) => void; // HomePage props ki match chesa
-}
+  // Real-time polling for admin product updates
+  useEffect(() => {
+    const loadProducts = () => {
+      const publishedProducts = storage.getPublishedProducts();
+      
+      // Compare with previous products to detect changes
+      if (JSON.stringify(publishedProducts) !== JSON.stringify(lastProductsRef.current)) {
+        setProducts(publishedProducts);
+        lastProductsRef.current = publishedProducts;
+      }
+    };
 
-export function ProductCard({ product, onBuyNow, onViewDetails }: ProductCardProps) {
-  // Database column 'image' leda 'image_url' edi unna panichestundi
-  const productImage = product.image || product.image_url || 'https://via.placeholder.com/300?text=Sikkolu+Specials';
+    loadProducts();
+    const interval = setInterval(loadProducts, 1500);
+
+    // Listen for storage events from other tabs/windows
+    const handleStorageChange = () => loadProducts();
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
+  const filteredProducts = products.filter(product => {
+    const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
+    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         product.description?.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
+
+  const handleAddToCart = (product: Product) => {
+    addItem(product);
+    toast({
+      title: "Added to Cart!",
+      description: `${product.name} has been added to your cart.`,
+    });
+  };
+
+  const handleBuyNow = (product: Product) => {
+    addItem(product);
+    navigate('/checkout');
+  };
 
   return (
-    <div className="group bg-white rounded-2xl shadow-md overflow-hidden border border-gray-100 hover:shadow-xl transition-all duration-300 flex flex-col h-full">
-      {/* Product Image Section */}
-      <div className="relative h-56 overflow-hidden bg-gray-100 cursor-pointer" onClick={() => onViewDetails?.(product)}>
-        <img
-          src={productImage}
-          alt={product.name}
-          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-          onError={(e) => {
-            e.currentTarget.src = 'https://via.placeholder.com/300?text=Image+Not+Found';
-          }}
-        />
-        {/* Eye Icon Button */}
-        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button 
-            onClick={(e) => {
-              e.stopPropagation(); // Image click event avvakunda
-              onViewDetails?.(product);
-            }}
-            className="p-2 bg-white rounded-full shadow-lg hover:bg-blue-600 hover:text-white transition-colors"
-          >
-            <Eye size={18} />
-          </button>
-        </div>
-      </div>
-
-      {/* Product Details Section */}
-      <div className="p-5 flex flex-col flex-grow">
-        <h3 className="text-lg font-bold text-gray-800 mb-1 line-clamp-1">{product.name}</h3>
-        <p className="text-sm text-gray-500 mb-4 line-clamp-2 min-h-[40px]">
-          {product.description || "Fresh and authentic Srikakulam special product."}
-        </p>
-        
-        <div className="mt-auto">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-2xl font-black text-blue-600">₹{product.price}</span>
-            {product.price === 0 && (
-              <span className="text-[10px] bg-orange-100 text-orange-600 px-2 py-1 rounded uppercase font-bold">
-                Contact for Price
-              </span>
-            )}
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+      {/* Hero Section */}
+      <section className="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-20 px-4">
+        <div className="max-w-7xl mx-auto text-center">
+          <h1 className="text-5xl md:text-6xl font-bold mb-6 animate-fade-in">
+            Sikkolu Specials
+          </h1>
+          <p className="text-xl md:text-2xl mb-8 text-blue-100">
+            Authentic Products from Srikakulam
+          </p>
+          <div className="max-w-2xl mx-auto">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <Input
+                placeholder="Search for traditional products, handicrafts, spices..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-12 py-6 text-lg bg-white/95 backdrop-blur border-none shadow-xl"
+              />
+            </div>
           </div>
+        </div>
+      </section>
 
-          <Button 
-            onClick={() => onBuyNow?.(product)}
-            className="w-full bg-slate-900 hover:bg-blue-600 text-white py-6 rounded-xl flex items-center justify-center gap-2 transition-all"
-          >
-            <ShoppingCart size={18} />
-            Buy Now
-          </Button>
+      {/* Category Filter */}
+      <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <CategoryFilter 
+            selectedCategory={selectedCategory}
+            onCategoryChange={setSelectedCategory}
+          />
         </div>
       </div>
+
+      {/* Products Grid */}
+      <section className="max-w-7xl mx-auto px-4 py-12">
+        {filteredProducts.length === 0 ? (
+          <div className="text-center py-20">
+            <ShoppingBag className="mx-auto text-gray-300 mb-4" size={64} />
+            <h3 className="text-2xl font-bold text-gray-400 mb-2">No Products Found</h3>
+            <p className="text-gray-500">Try adjusting your search or filters</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredProducts.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                onAddToCart={handleAddToCart}
+                onViewDetails={(p) => setSelectedProduct(p)}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Shopping Cart Badge */}
+      {items.length > 0 && (
+        <button
+          onClick={() => navigate('/checkout')}
+          className="fixed bottom-6 right-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-full shadow-2xl hover:shadow-3xl transform hover:scale-110 transition-all z-50"
+        >
+          <ShoppingBag size={24} />
+          <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center animate-pulse">
+            {items.length}
+          </span>
+        </button>
+      )}
+
+      {/* Product Detail Modal */}
+      {selectedProduct && (
+        <ProductModal
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+          onAddToCart={handleAddToCart}
+          onBuyNow={handleBuyNow}
+        />
+      )}
+
+      {/* AI ChatBot */}
+      <ChatBot />
     </div>
   );
 }
