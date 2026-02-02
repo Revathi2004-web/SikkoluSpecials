@@ -1,10 +1,10 @@
 // components/AdminDashboard.tsx
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabaseClient';
 import { notifications } from '@/lib/notifications';
 import { 
   LayoutDashboard, Package, ShoppingCart, Settings, 
-  Plus, Save, Trash2, Eye, EyeOff, CheckCircle, XCircle 
+  Plus, Save, Trash2, Eye, EyeOff, CheckCircle, XCircle, Receipt 
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,6 +40,21 @@ export function AdminDashboard() {
     setOrders(ord || []);
     setProducts(prod || []);
     if (sett) setPaymentSettings(sett.payment_data);
+  };
+
+  const fetchOrders = async () => {
+    const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+    setOrders(data || []);
+  };
+
+  const updateOrderField = async (orderId: string, updates: any) => {
+    const { error } = await supabase.from('orders').update(updates).eq('id', orderId);
+    if (!error) {
+      toast({ title: "Order Updated!", description: "Changes saved successfully." });
+      fetchOrders();
+    } else {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
   };
 
   // 2. INSTANT PAYMENT UPDATE: Ikkada update chesthe customer checkout page lo maripothundi
