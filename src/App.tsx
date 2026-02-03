@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import HomePage from './pages/HomePage';
-import AdminDashboard from './pages/AdminDashboard';
+import { HomePage } from './pages/HomePage';
+import { AdminDashboard } from './pages/AdminDashboard';
 import './index.css'; // Styling kosam idi thappakunda undali
 
 function App() {
