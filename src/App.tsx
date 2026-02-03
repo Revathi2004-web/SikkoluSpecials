@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import HomePage from './pages/HomePage';
-import AdminDashboard from './pages/AdminDashboard'; // src/pages lo ee file undali
-import CheckoutPage from './pages/CheckoutPage'; // Oka vela unte
+import { HomePage } from './pages/HomePage';
+import { AdminDashboard } from './pages/AdminDashboard';
+import CheckoutPage from './pages/checkout';
 
 function App() {
   return (
