@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react';
-// PATH FIX: Make sure this matches your file name
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabaseClient'; 
 import { ProductCard } from '@/components/features/ProductCard';
 import { CategoryFilter } from '@/components/layout/CategoryFilter';
 import { OrderForm } from '@/components/forms/OrderForm';
 import { Product } from '@/types';
 import { ShoppingBag, Search } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useCartStore } from '@/stores/cartStore';
 
 export function HomePage() {
+  const navigate = useNavigate();
+  const { addToCart } = useCartStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,7 +62,13 @@ export function HomePage() {
             <span className="text-xl font-bold tracking-tighter text-slate-900">SIKKOLU <span className="text-orange-600">SPECIALS</span></span>
           </div>
           <div className="flex items-center gap-6">
-             <button className="text-sm font-semibold text-slate-500 hover:text-orange-600 transition-colors">Admin Dashboard</button>
+             <Button 
+               onClick={() => navigate('/admin')} 
+               variant="ghost"
+               className="text-sm font-semibold text-slate-700 hover:text-orange-600 transition-colors"
+             >
+               Admin Dashboard
+             </Button>
           </div>
         </div>
       </nav>
