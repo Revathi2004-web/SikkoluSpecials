@@ -5,7 +5,7 @@ import { ProductCard } from '@/components/features/ProductCard';
 import { CategoryFilter } from '@/components/layout/CategoryFilter';
 import { OrderForm } from '@/components/forms/OrderForm';
 import { Product } from '@/types';
-import { ShoppingBag, Search } from 'lucide-react';
+import { ShoppingBag, LogIn, LogOut, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCartStore } from '@/stores/cartStore';
 
@@ -17,6 +17,20 @@ export function HomePage() {
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [customer, setCustomer] = useState<any>(null);
+
+  useEffect(() => {
+    const customerData = localStorage.getItem('customer');
+    if (customerData) {
+      setCustomer(JSON.parse(customerData));
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('customer');
+    setCustomer(null);
+    navigate('/');
+  };
 
   useEffect(() => {
     async function fetchProducts() {
@@ -61,14 +75,34 @@ export function HomePage() {
             </div>
             <span className="text-xl font-bold tracking-tighter text-slate-900">SIKKOLU <span className="text-orange-600">SPECIALS</span></span>
           </div>
-          <div className="flex items-center gap-6">
-             <Button 
-               onClick={() => navigate('/admin')} 
-               variant="ghost"
-               className="text-sm font-semibold text-slate-700 hover:text-orange-600 transition-colors"
-             >
-               Admin Dashboard
-             </Button>
+          <div className="flex items-center gap-3">
+            {customer ? (
+              <>
+                <Button variant="ghost" onClick={() => navigate('/my-orders')} size="sm">
+                  <Package className="w-4 h-4 mr-2" /> My Orders
+                </Button>
+                <span className="text-sm font-medium hidden sm:inline">{customer.name}</span>
+                <Button variant="outline" onClick={handleLogout} size="sm">
+                  <LogOut className="w-4 h-4 mr-2" /> Logout
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => navigate('/login')} size="sm">
+                  <LogIn className="w-4 h-4 mr-2" /> Login
+                </Button>
+                <Button onClick={() => navigate('/register')} size="sm">
+                  Register
+                </Button>
+              </>
+            )}
+            <Button 
+              onClick={() => navigate('/admin')} 
+              variant="ghost"
+              className="text-sm font-semibold text-slate-700 hover:text-orange-600"
+            >
+              Admin
+            </Button>
           </div>
         </div>
       </nav>

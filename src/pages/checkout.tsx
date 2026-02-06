@@ -15,10 +15,25 @@ export default function CheckoutPage() {
   const [step, setStep] = useState(1);
   const [settings, setSettings] = useState({ upi_id: '', bank_details: '', admin_phone: '' });
   const [customer, setCustomer] = useState({ name: '', phone: '', email: '', address: '' });
+  const [customerData, setCustomerData] = useState<any>(null);
   const [receipt, setReceipt] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [orderId, setOrderId] = useState('');
   const totalAmount = getTotalPrice();
+
+  useEffect(() => {
+    const storedCustomer = localStorage.getItem('customer');
+    if (storedCustomer) {
+      const parsed = JSON.parse(storedCustomer);
+      setCustomerData(parsed);
+      setCustomer({
+        name: parsed.name || '',
+        phone: parsed.phone || '',
+        email: parsed.email || '',
+        address: ''
+      });
+    }
+  }, []);
 
   useEffect(() => {
     async function loadSettings() {
@@ -63,6 +78,7 @@ export default function CheckoutPage() {
 
       // Create order in database
       const { data: orderData, error: orderError } = await supabase.from('orders').insert([{
+        customer_id: customerData?.id,
         customer_name: customer.name,
         customer_phone: customer.phone,
         customer_email: customer.email,
@@ -73,9 +89,9 @@ export default function CheckoutPage() {
         payment_method: 'upi',
         payment_receipt_url: urlData.publicUrl,
         items: items.map(item => ({
-          id: item.id,
-          name: item.name,
-          price: item.price,
+          id: item.product.id,
+          name: item.product.name,
+          price: item.product.price,
           quantity: item.quantity
         }))
       }]).select().single();
@@ -89,6 +105,15 @@ export default function CheckoutPage() {
       clearCart();
       setStep(3);
       toast({ title: 'Order placed successfully!' });
+
+      // Send SMS to customer
+      await supabase.functions.invoke('send-sms', {
+        body: {
+          phone: customer.phone,
+          message: `Order #${orderData.id.slice(0, 8)} placed! Total: ₹${totalAmount}. Please complete payment via UPI: ${settings.upi_id}. Upload screenshot to confirm. - Sikkolu Specials`,
+          type: 'order_confirmation'
+        }
+      });
     } catch (err: any) {
       console.error('Order submission error:', err);
       toast({ title: 'Order failed: ' + (err.message || 'Unknown error'), variant: 'destructive' });

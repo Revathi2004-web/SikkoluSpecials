@@ -2,6 +2,10 @@ import { create } from 'zustand';
 import { Product } from '@/types';
 
 export interface CartItem {
+  id: string;
+  name: string;
+  price: number;
+  image: string;
   product: Product;
   quantity: number;
 }
@@ -32,7 +36,14 @@ export const useCartStore = create<CartState>((set, get) => ({
         ),
       });
     } else {
-      set({ items: [...items, { product, quantity: 1 }] });
+      set({ items: [...items, { 
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        image: product.image,
+        product, 
+        quantity: 1 
+      }] });
     }
   },
   

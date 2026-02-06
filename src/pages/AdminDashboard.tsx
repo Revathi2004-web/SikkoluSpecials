@@ -39,6 +39,7 @@ interface Order {
   id: string;
   customer_name: string;
   customer_phone: string;
+  customer_email: string;
   shipping_address: string;
   total_price: number;
   status: string;
@@ -48,14 +49,25 @@ interface Order {
   items: any;
 }
 
+interface Expense {
+  id: string;
+  category: string;
+  amount: number;
+  description: string;
+  payment_date: string;
+  created_at: string;
+}
+
 export function AdminDashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders' | 'expenses'>('overview');
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isAddingExpense, setIsAddingExpense] = useState(false);
   
   // New Product Form
   const [newProduct, setNewProduct] = useState({
@@ -68,9 +80,18 @@ export function AdminDashboard() {
     stock: 0
   });
 
+  // New Expense Form
+  const [newExpense, setNewExpense] = useState({
+    category: '',
+    amount: 0,
+    description: '',
+    payment_date: new Date().toISOString().split('T')[0]
+  });
+
   useEffect(() => {
     fetchProducts();
     fetchOrders();
+    fetchExpenses();
   }, []);
 
   const fetchProducts = async () => {
@@ -90,6 +111,16 @@ export function AdminDashboard() {
       console.error(error);
     } else {
       setOrders(data || []);
+    }
+  };
+
+  const fetchExpenses = async () => {
+    const { data, error } = await supabase.from('expenses').select('*').order('payment_date', { ascending: false });
+    if (error) {
+      toast({ title: 'Error fetching expenses', variant: 'destructive' });
+      console.error(error);
+    } else {
+      setExpenses(data || []);
     }
   };
 
@@ -138,12 +169,72 @@ export function AdminDashboard() {
   };
 
   const handleVerifyPayment = async (orderId: string) => {
-    const { error } = await supabase.from('orders').update({ payment_status: 'verified' }).eq('id', orderId);
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+
+    const { error } = await supabase.from('orders').update({ payment_status: 'verified', status: 'confirmed' }).eq('id', orderId);
     if (error) {
       toast({ title: 'Error verifying payment', variant: 'destructive' });
     } else {
       toast({ title: 'Payment verified successfully!' });
+      
+      // Send SMS to customer
+      await supabase.functions.invoke('send-sms', {
+        body: {
+          phone: order.customer_phone,
+          message: `Payment verified for Order #${orderId.slice(0, 8)}. Your order is confirmed and will be shipped soon. Thank you! - Sikkolu Specials`,
+          type: 'payment_verified'
+        }
+      });
+
+      // Generate invoice
+      await supabase.functions.invoke('generate-invoice', {
+        body: {
+          order,
+          customer: { name: order.customer_name, phone: order.customer_phone, email: order.customer_email },
+          items: order.items
+        }
+      });
+
       fetchOrders();
+    }
+  };
+
+  const handleRejectPayment = async (orderId: string) => {
+    const { error } = await supabase.from('orders').update({ payment_status: 'failed' }).eq('id', orderId);
+    if (error) {
+      toast({ title: 'Error rejecting payment', variant: 'destructive' });
+    } else {
+      toast({ title: 'Payment rejected' });
+      fetchOrders();
+    }
+  };
+
+  const handleAddExpense = async () => {
+    if (!newExpense.category || !newExpense.amount) {
+      toast({ title: 'Please fill required fields', variant: 'destructive' });
+      return;
+    }
+
+    const { error } = await supabase.from('expenses').insert([newExpense]);
+    if (error) {
+      toast({ title: 'Error adding expense', variant: 'destructive' });
+    } else {
+      toast({ title: 'Expense added successfully!' });
+      setNewExpense({ category: '', amount: 0, description: '', payment_date: new Date().toISOString().split('T')[0] });
+      setIsAddingExpense(false);
+      fetchExpenses();
+    }
+  };
+
+  const handleDeleteExpense = async (id: string) => {
+    if (!confirm('Delete this expense?')) return;
+    const { error } = await supabase.from('expenses').delete().eq('id', id);
+    if (error) {
+      toast({ title: 'Error deleting expense', variant: 'destructive' });
+    } else {
+      toast({ title: 'Expense deleted!' });
+      fetchExpenses();
     }
   };
 
@@ -151,13 +242,18 @@ export function AdminDashboard() {
   const totalRevenue = orders.filter(o => o.payment_status === 'verified').reduce((sum, o) => sum + Number(o.total_price), 0);
   const totalOrders = orders.length;
   const pendingOrders = orders.filter(o => o.status === 'pending').length;
+  const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
   
-  // Profit calculation (requires matching products with orders)
-  const totalProfit = orders.filter(o => o.payment_status === 'verified').reduce((sum, order) => {
-    // This is simplified - in real scenario, calculate based on items in order
-    const avgCostRatio = 0.6; // Assume 60% cost, 40% profit margin
-    return sum + (Number(order.total_price) * (1 - avgCostRatio));
+  // Net Profit = Revenue - Expenses - Product Costs
+  const productCosts = orders.filter(o => o.payment_status === 'verified').reduce((sum, order) => {
+    const orderCost = (order.items || []).reduce((itemSum: number, item: any) => {
+      const product = products.find(p => p.id === item.id);
+      return itemSum + ((product?.cost_price || 0) * (item.quantity || 1));
+    }, 0);
+    return sum + orderCost;
   }, 0);
+  
+  const netProfit = totalRevenue - totalExpenses - productCosts;
 
   // Daily revenue for last 7 days
   const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -222,6 +318,12 @@ export function AdminDashboard() {
               >
                 Orders
               </Button>
+              <Button 
+                variant={activeTab === 'expenses' ? 'default' : 'outline'}
+                onClick={() => setActiveTab('expenses')}
+              >
+                Expenses
+              </Button>
             </div>
           </div>
         </div>
@@ -246,12 +348,12 @@ export function AdminDashboard() {
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium">Total Profit</CardTitle>
+                  <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
                   <TrendingUp className="w-4 h-4 text-blue-600" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">₹{totalProfit.toFixed(2)}</div>
-                  <p className="text-xs text-muted-foreground">Estimated profit</p>
+                  <div className={`text-2xl font-bold ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>₹{netProfit.toFixed(2)}</div>
+                  <p className="text-xs text-muted-foreground">Revenue - Costs - Expenses</p>
                 </CardContent>
               </Card>
 
@@ -494,7 +596,11 @@ export function AdminDashboard() {
                       <td className="px-6 py-4 font-semibold">₹{order.total_price}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
-                          <span className={`px-2 py-1 text-xs rounded-full ${order.payment_status === 'verified' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            order.payment_status === 'verified' ? 'bg-green-100 text-green-800' : 
+                            order.payment_status === 'failed' ? 'bg-red-100 text-red-800' : 
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>
                             {order.payment_status}
                           </span>
                           {order.payment_receipt_url && (
@@ -519,15 +625,129 @@ export function AdminDashboard() {
                         </select>
                       </td>
                       <td className="px-6 py-4">
-                        {order.payment_status !== 'verified' && (
-                          <Button 
-                            size="sm" 
-                            onClick={() => handleVerifyPayment(order.id)}
-                            className="bg-green-600"
-                          >
-                            <Check className="w-4 h-4 mr-1" /> Verify
-                          </Button>
+                        {order.payment_status === 'pending' && (
+                          <div className="flex gap-2">
+                            <Button 
+                              size="sm" 
+                              onClick={() => handleVerifyPayment(order.id)}
+                              className="bg-green-600"
+                            >
+                              <Check className="w-4 h-4 mr-1" /> Approve
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="destructive"
+                              onClick={() => handleRejectPayment(order.id)}
+                            >
+                              <X className="w-4 h-4 mr-1" /> Reject
+                            </Button>
+                          </div>
                         )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Expenses Tab */}
+        {activeTab === 'expenses' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold">Business Expenses</h2>
+              <Button onClick={() => setIsAddingExpense(true)}>
+                <Plus className="w-4 h-4 mr-2" /> Add Expense
+              </Button>
+            </div>
+
+            {isAddingExpense && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Record New Expense</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Category*</Label>
+                      <select 
+                        className="w-full border rounded-md p-2"
+                        value={newExpense.category}
+                        onChange={(e) => setNewExpense({...newExpense, category: e.target.value})}
+                      >
+                        <option value="">Select category</option>
+                        <option value="inventory">Inventory Purchase</option>
+                        <option value="rent">Rent</option>
+                        <option value="utilities">Utilities</option>
+                        <option value="marketing">Marketing</option>
+                        <option value="salary">Salary</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label>Amount (₹)*</Label>
+                      <Input 
+                        type="number"
+                        value={newExpense.amount}
+                        onChange={(e) => setNewExpense({...newExpense, amount: Number(e.target.value)})}
+                      />
+                    </div>
+                    <div>
+                      <Label>Payment Date</Label>
+                      <Input 
+                        type="date"
+                        value={newExpense.payment_date}
+                        onChange={(e) => setNewExpense({...newExpense, payment_date: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Description</Label>
+                    <Textarea 
+                      value={newExpense.description}
+                      onChange={(e) => setNewExpense({...newExpense, description: e.target.value})}
+                      placeholder="Expense details..."
+                      rows={2}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button onClick={handleAddExpense}>Add Expense</Button>
+                    <Button variant="outline" onClick={() => setIsAddingExpense(false)}>Cancel</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <div className="bg-white rounded-lg shadow">
+              <div className="p-6 border-b">
+                <div className="text-2xl font-bold text-red-600">Total Expenses: ₹{totalExpenses.toFixed(2)}</div>
+              </div>
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {expenses.map((expense) => (
+                    <tr key={expense.id}>
+                      <td className="px-6 py-4 text-sm">{new Date(expense.payment_date).toLocaleDateString('en-IN')}</td>
+                      <td className="px-6 py-4">
+                        <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs font-semibold">
+                          {expense.category}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm">{expense.description || '-'}</td>
+                      <td className="px-6 py-4 font-semibold text-red-600">₹{expense.amount}</td>
+                      <td className="px-6 py-4">
+                        <Button variant="ghost" size="sm" onClick={() => handleDeleteExpense(expense.id)}>
+                          <Trash2 className="w-4 h-4 text-red-600" />
+                        </Button>
                       </td>
                     </tr>
                   ))}
