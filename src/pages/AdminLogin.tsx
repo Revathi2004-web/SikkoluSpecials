@@ -106,11 +106,6 @@ export function AdminLogin() {
               {loading ? 'Authenticating...' : 'Login to Dashboard'}
             </Button>
           </form>
-          <div className="mt-6 p-4 bg-slate-100 rounded-lg">
-            <p className="text-xs text-slate-600 font-semibold">Default Credentials:</p>
-            <p className="text-xs text-slate-500 font-mono">Username: admin</p>
-            <p className="text-xs text-slate-500 font-mono">Password: admin123</p>
-          </div>
         </CardContent>
       </Card>
     </div>
