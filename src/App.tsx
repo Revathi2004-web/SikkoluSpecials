@@ -5,6 +5,7 @@ import { TrackOrder } from './pages/TrackOrder';
 import { MyOrders } from './pages/MyOrders';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
+import { AdminLogin } from './pages/AdminLogin';
 import Checkout from './pages/checkout'; 
 import { Toaster } from '@/components/ui/toaster';
 import './index.css';
@@ -16,11 +17,12 @@ function App() {
         {/* Main Home Page */}
         <Route path="/" element={<HomePage />} />
         
-        {/* Authentication */}
+        {/* Customer Authentication */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         
-        {/* Admin Page */}
+        {/* Admin Authentication & Dashboard */}
+        <Route path="/admin-login" element={<AdminLogin />} />
         <Route path="/admin" element={<AdminDashboard />} />
         
         {/* Customer Pages */}

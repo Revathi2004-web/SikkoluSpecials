@@ -62,6 +62,26 @@ export function AdminDashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders' | 'expenses'>('overview');
+  const [admin, setAdmin] = useState<any>(null);
+  const [imageUpload, setImageUpload] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  // Check admin authentication
+  useEffect(() => {
+    const adminData = localStorage.getItem('admin');
+    if (!adminData) {
+      toast({ title: 'Unauthorized access', variant: 'destructive' });
+      navigate('/admin-login');
+      return;
+    }
+    setAdmin(JSON.parse(adminData));
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('admin');
+    toast({ title: 'Logged out successfully' });
+    navigate('/');
+  };
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -124,14 +144,46 @@ export function AdminDashboard() {
     }
   };
 
+  const handleImageUpload = async (file: File) => {
+    setUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `product_${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('product-images')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('product-images').getPublicUrl(fileName);
+      return data.publicUrl;
+    } catch (err: any) {
+      toast({ title: 'Image upload failed', variant: 'destructive' });
+      console.error(err);
+      return null;
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleAddProduct = async () => {
     if (!newProduct.name || !newProduct.price) {
       toast({ title: 'Please fill all required fields', variant: 'destructive' });
       return;
     }
 
+    let imageUrl = newProduct.image_url;
+    
+    // Upload image if file selected
+    if (imageUpload) {
+      imageUrl = await handleImageUpload(imageUpload) || '';
+      if (!imageUrl) return; // Cancel if upload failed
+    }
+
     const { error } = await supabase.from('products').insert([{
       ...newProduct,
+      image_url: imageUrl,
       status: 'published'
     }]);
 
@@ -142,6 +194,7 @@ export function AdminDashboard() {
       toast({ title: 'Product added successfully!' });
       setIsAddingProduct(false);
       setNewProduct({ name: '', description: '', price: 0, cost_price: 0, image_url: '', category: 'snacks', stock: 0 });
+      setImageUpload(null);
       fetchProducts();
     }
   };
@@ -298,6 +351,7 @@ export function AdminDashboard() {
                 <ArrowLeft className="w-5 h-5" />
               </Button>
               <h1 className="text-2xl font-bold">Sikkolu Specials Admin</h1>
+              {admin && <span className="text-sm text-muted-foreground">• {admin.name}</span>}
             </div>
             <div className="flex gap-2">
               <Button 
@@ -323,6 +377,9 @@ export function AdminDashboard() {
                 onClick={() => setActiveTab('expenses')}
               >
                 Expenses
+              </Button>
+              <Button variant="ghost" onClick={handleLogout} className="text-red-600">
+                Logout
               </Button>
             </div>
           </div>
@@ -493,12 +550,29 @@ export function AdminDashboard() {
                         onChange={(e) => setNewProduct({...newProduct, stock: Number(e.target.value)})}
                       />
                     </div>
-                    <div>
-                      <Label>Image URL</Label>
+                    <div className="col-span-2">
+                      <Label>Product Image</Label>
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition-colors">
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          className="hidden" 
+                          id="product-image-upload"
+                          onChange={(e) => setImageUpload(e.target.files?.[0] || null)} 
+                        />
+                        <label htmlFor="product-image-upload" className="cursor-pointer">
+                          <Upload className="mx-auto text-gray-400 mb-2" size={32} />
+                          <p className="text-sm font-semibold">
+                            {imageUpload ? '✓ ' + imageUpload.name : 'Click to upload product image'}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">Or paste image URL below</p>
+                        </label>
+                      </div>
                       <Input 
+                        className="mt-2"
                         value={newProduct.image_url}
                         onChange={(e) => setNewProduct({...newProduct, image_url: e.target.value})}
-                        placeholder="https://..."
+                        placeholder="Or paste image URL (https://...)"
                       />
                     </div>
                   </div>
@@ -512,7 +586,9 @@ export function AdminDashboard() {
                     />
                   </div>
                   <div className="flex gap-2">
-                    <Button onClick={handleAddProduct}>Add Product</Button>
+                    <Button onClick={handleAddProduct} disabled={uploading}>
+                      {uploading ? 'Uploading...' : 'Add Product'}
+                    </Button>
                     <Button variant="outline" onClick={() => setIsAddingProduct(false)}>Cancel</Button>
                   </div>
                 </CardContent>

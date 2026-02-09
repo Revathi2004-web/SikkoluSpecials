@@ -97,11 +97,11 @@ export function HomePage() {
               </>
             )}
             <Button 
-              onClick={() => navigate('/admin')} 
+              onClick={() => navigate('/admin-login')} 
               variant="ghost"
               className="text-sm font-semibold text-slate-700 hover:text-orange-600"
             >
-              Admin
+              Admin Login
             </Button>
           </div>
         </div>
