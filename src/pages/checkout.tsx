@@ -13,7 +13,7 @@ export default function CheckoutPage() {
   const { toast } = useToast();
   const { items, getTotalPrice, clearCart } = useCartStore();
   const [step, setStep] = useState(1);
-  const [settings, setSettings] = useState({ upi_id: '', bank_details: '', admin_phone: '' });
+  const [settings, setSettings] = useState({ upi_id: '', bank_details: '', admin_phone: '', qr_code_url: '' });
   const [customer, setCustomer] = useState({ name: '', phone: '', email: '', address: '' });
   const [customerData, setCustomerData] = useState<any>(null);
   const [receipt, setReceipt] = useState<File | null>(null);
@@ -38,7 +38,12 @@ export default function CheckoutPage() {
   useEffect(() => {
     async function loadSettings() {
       const { data } = await supabase.from('site_settings').select('*').eq('id', 'master_config').single();
-      if (data) setSettings(data);
+      if (data) setSettings({
+        upi_id: data.upi_id || '',
+        bank_details: data.bank_details || '',
+        admin_phone: data.admin_phone || '',
+        qr_code_url: data.qr_code_url || ''
+      });
     }
     loadSettings();
 
@@ -198,11 +203,19 @@ export default function CheckoutPage() {
             <div className="space-y-4">
               <h3 className="font-semibold text-lg">Pay via PhonePe/GPay/Paytm UPI</h3>
               <div className="bg-white p-6 rounded-2xl border-4 border-blue-500 shadow-lg inline-block">
-                <img 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=${settings.upi_id}&pn=SikkoluSpecials&am=${totalAmount}&cu=INR`} 
-                  alt="UPI QR Code"
-                  className="mx-auto"
-                />
+                {settings.qr_code_url ? (
+                  <img 
+                    src={settings.qr_code_url} 
+                    alt="Payment QR Code"
+                    className="w-64 h-64 mx-auto object-contain"
+                  />
+                ) : (
+                  <img 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=${settings.upi_id}&pn=SikkoluSpecials&am=${totalAmount}&cu=INR`} 
+                    alt="UPI QR Code"
+                    className="mx-auto"
+                  />
+                )}
               </div>
               <div className="bg-blue-50 p-3 rounded-lg">
                 <p className="text-xs text-gray-600">UPI ID</p>

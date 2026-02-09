@@ -61,7 +61,7 @@ interface Expense {
 export function AdminDashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders' | 'expenses'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders' | 'expenses' | 'settings'>('overview');
   const [admin, setAdmin] = useState<any>(null);
   const [imageUpload, setImageUpload] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -108,11 +108,42 @@ export function AdminDashboard() {
     payment_date: new Date().toISOString().split('T')[0]
   });
 
+  // Payment Settings State
+  const [settings, setSettings] = useState({
+    upi_id: '',
+    bank_details: '',
+    qr_code_url: '',
+    admin_phone: ''
+  });
+  const [qrUpload, setQrUpload] = useState<File | null>(null);
+  const [isAddingManualPayment, setIsAddingManualPayment] = useState(false);
+  const [manualPayment, setManualPayment] = useState({
+    type: 'income',
+    amount: 0,
+    description: '',
+    payment_date: new Date().toISOString().split('T')[0]
+  });
+
   useEffect(() => {
     fetchProducts();
     fetchOrders();
     fetchExpenses();
+    fetchSettings();
   }, []);
+
+  const fetchSettings = async () => {
+    const { data, error } = await supabase.from('site_settings').select('*').eq('id', 'master_config').single();
+    if (error) {
+      console.error('Error fetching settings:', error);
+    } else if (data) {
+      setSettings({
+        upi_id: data.upi_id || '',
+        bank_details: data.bank_details || '',
+        qr_code_url: data.qr_code_url || '',
+        admin_phone: data.admin_phone || ''
+      });
+    }
+  };
 
   const fetchProducts = async () => {
     const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
@@ -291,6 +322,83 @@ export function AdminDashboard() {
     }
   };
 
+  const handleQrUpload = async (file: File) => {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `qr_code_${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('product-images')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('product-images').getPublicUrl(fileName);
+      return data.publicUrl;
+    } catch (err: any) {
+      toast({ title: 'QR upload failed', variant: 'destructive' });
+      console.error(err);
+      return null;
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    setUploading(true);
+    try {
+      let qrUrl = settings.qr_code_url;
+      
+      if (qrUpload) {
+        qrUrl = await handleQrUpload(qrUpload) || '';
+        if (!qrUrl) {
+          setUploading(false);
+          return;
+        }
+      }
+
+      const { error } = await supabase.from('site_settings').update({
+        upi_id: settings.upi_id,
+        bank_details: settings.bank_details,
+        qr_code_url: qrUrl,
+        admin_phone: settings.admin_phone
+      }).eq('id', 'master_config');
+
+      if (error) throw error;
+
+      toast({ title: 'Payment settings saved successfully!' });
+      setQrUpload(null);
+      fetchSettings();
+    } catch (err: any) {
+      toast({ title: 'Error saving settings', variant: 'destructive' });
+      console.error(err);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleAddManualPayment = async () => {
+    if (!manualPayment.amount || !manualPayment.description) {
+      toast({ title: 'Please fill all fields', variant: 'destructive' });
+      return;
+    }
+
+    const { error } = await supabase.from('expenses').insert([{
+      category: manualPayment.type === 'income' ? 'manual_income' : 'manual_expense',
+      amount: manualPayment.type === 'income' ? -Math.abs(manualPayment.amount) : Math.abs(manualPayment.amount),
+      description: manualPayment.description,
+      payment_date: manualPayment.payment_date,
+      created_by: 'admin'
+    }]);
+
+    if (error) {
+      toast({ title: 'Error recording payment', variant: 'destructive' });
+    } else {
+      toast({ title: `Manual ${manualPayment.type} recorded!` });
+      setManualPayment({ type: 'income', amount: 0, description: '', payment_date: new Date().toISOString().split('T')[0] });
+      setIsAddingManualPayment(false);
+      fetchExpenses();
+    }
+  };
+
   // Analytics Calculations
   const totalRevenue = orders.filter(o => o.payment_status === 'verified').reduce((sum, o) => sum + Number(o.total_price), 0);
   const totalOrders = orders.length;
@@ -377,6 +485,12 @@ export function AdminDashboard() {
                 onClick={() => setActiveTab('expenses')}
               >
                 Expenses
+              </Button>
+              <Button 
+                variant={activeTab === 'settings' ? 'default' : 'outline'}
+                onClick={() => setActiveTab('settings')}
+              >
+                Settings
               </Button>
               <Button variant="ghost" onClick={handleLogout} className="text-red-600">
                 Logout
@@ -725,6 +839,147 @@ export function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {/* Settings Tab */}
+        {activeTab === 'settings' && (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold">Payment Settings</h2>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>UPI & Bank Configuration</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div>
+                      <Label>UPI ID*</Label>
+                      <Input 
+                        placeholder="yourname@paytm"
+                        value={settings.upi_id}
+                        onChange={e => setSettings({...settings, upi_id: e.target.value})}
+                      />
+                    </div>
+                    <div>
+                      <Label>Admin Contact Phone</Label>
+                      <Input 
+                        placeholder="+91-9876543210"
+                        value={settings.admin_phone}
+                        onChange={e => setSettings({...settings, admin_phone: e.target.value})}
+                      />
+                    </div>
+                    <div>
+                      <Label>Bank Details</Label>
+                      <Textarea 
+                        rows={5}
+                        placeholder="Bank Name: SBI&#10;Account Number: 123456789&#10;IFSC Code: SBIN0001234&#10;Account Holder: Your Name"
+                        value={settings.bank_details}
+                        onChange={e => setSettings({...settings, bank_details: e.target.value})}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Upload Payment QR Code</Label>
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition-colors">
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          className="hidden" 
+                          id="qr-upload"
+                          onChange={(e) => setQrUpload(e.target.files?.[0] || null)} 
+                        />
+                        <label htmlFor="qr-upload" className="cursor-pointer">
+                          <Upload className="mx-auto text-gray-400 mb-2" size={40} />
+                          <p className="text-sm font-semibold">
+                            {qrUpload ? '✓ ' + qrUpload.name : 'Click to upload QR code'}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">PhonePe/GPay/Paytm QR</p>
+                        </label>
+                      </div>
+                      {settings.qr_code_url && (
+                        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                          <p className="text-xs text-gray-600 mb-2">Current QR Code:</p>
+                          <img src={settings.qr_code_url} alt="Payment QR" className="w-48 h-48 mx-auto border-2 border-gray-300 rounded" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <Button onClick={handleSaveSettings} disabled={uploading} className="w-full md:w-auto">
+                  {uploading ? 'Saving...' : 'Save Payment Settings'}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle>Manual Payment Records</CardTitle>
+                  <Button onClick={() => setIsAddingManualPayment(true)} size="sm">
+                    <Plus className="w-4 h-4 mr-2" /> Add Manual Payment
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {isAddingManualPayment && (
+                  <div className="bg-blue-50 p-4 rounded-lg mb-4 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Type*</Label>
+                        <select 
+                          className="w-full border rounded-md p-2"
+                          value={manualPayment.type}
+                          onChange={(e) => setManualPayment({...manualPayment, type: e.target.value})}
+                        >
+                          <option value="income">Income (Offline Sale)</option>
+                          <option value="expense">Expense (Cash Payment)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <Label>Amount (₹)*</Label>
+                        <Input 
+                          type="number"
+                          value={manualPayment.amount}
+                          onChange={(e) => setManualPayment({...manualPayment, amount: Number(e.target.value)})}
+                        />
+                      </div>
+                      <div>
+                        <Label>Date</Label>
+                        <Input 
+                          type="date"
+                          value={manualPayment.payment_date}
+                          onChange={(e) => setManualPayment({...manualPayment, payment_date: e.target.value})}
+                        />
+                      </div>
+                      <div>
+                        <Label>Description*</Label>
+                        <Input 
+                          placeholder="e.g., Cash sale to local customer"
+                          value={manualPayment.description}
+                          onChange={(e) => setManualPayment({...manualPayment, description: e.target.value})}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button onClick={handleAddManualPayment}>
+                        Record Payment
+                      </Button>
+                      <Button variant="outline" onClick={() => setIsAddingManualPayment(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <p className="text-sm text-muted-foreground">
+                  Use this to record offline sales (bank transfers, cash) or manual expenses that don't go through the website.
+                </p>
+              </CardContent>
+            </Card>
           </div>
         )}
 
