@@ -21,8 +21,8 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         
-        {/* Admin Authentication & Dashboard */}
-        <Route path="/admin-login" element={<AdminLogin />} />
+        {/* Secret Admin Routes (No visible links) */}
+        <Route path="/admin-secret" element={<AdminLogin />} />
         <Route path="/admin" element={<AdminDashboard />} />
         
         {/* Customer Pages */}

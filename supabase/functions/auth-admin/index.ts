@@ -1,9 +1,22 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
-import * as bcrypt from 'https://deno.land/x/bcrypt@v0.4.1/mod.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+
+// Simple password hashing using Web Crypto API (no Worker dependency)
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  const passwordHash = await hashPassword(password);
+  return passwordHash === hash;
+}
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -12,7 +25,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { action, username, password } = await req.json();
+    const { action, username, password, name } = await req.json();
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     if (action === 'login') {
@@ -30,8 +43,8 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Verify password (using bcrypt)
-      const validPassword = await bcrypt.compare(password, admin.password_hash);
+      // Verify password
+      const validPassword = await verifyPassword(password, admin.password_hash);
       
       if (!validPassword) {
         return new Response(
@@ -55,7 +68,7 @@ Deno.serve(async (req) => {
 
     if (action === 'register') {
       // Hash password
-      const passwordHash = await bcrypt.hash(password);
+      const passwordHash = await hashPassword(password);
 
       // Create new admin
       const { data: newAdmin, error } = await supabase
@@ -63,7 +76,7 @@ Deno.serve(async (req) => {
         .insert([{
           username,
           password_hash: passwordHash,
-          name: username
+          name: name || username
         }])
         .select()
         .single();

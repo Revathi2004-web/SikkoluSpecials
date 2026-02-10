@@ -34,6 +34,11 @@ export function Register() {
       return;
     }
 
+    if (formData.password.length < 6) {
+      toast({ title: 'Password must be at least 6 characters', variant: 'destructive' });
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -77,28 +82,29 @@ export function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-blue-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md shadow-2xl">
-        <CardHeader>
-          <Button variant="ghost" onClick={() => navigate('/')} className="w-fit mb-2">
+    <div className="min-h-screen bg-gradient-to-br from-[#800000] to-[#400000] flex items-center justify-center p-4">
+      <Card className="w-full max-w-md shadow-2xl border-4 border-[#D4AF37]">
+        <CardHeader className="bg-gradient-to-r from-[#800000] to-[#600000] text-white rounded-t-lg">
+          <Button variant="ghost" onClick={() => navigate('/')} className="w-fit mb-2 text-white hover:bg-[#D4AF37] hover:text-[#800000]">
             <ArrowLeft className="w-4 h-4 mr-2" /> Back to Home
           </Button>
-          <CardTitle className="text-2xl text-center">Create Account</CardTitle>
-          <p className="text-center text-sm text-muted-foreground">Join Sikkolu Specials</p>
+          <CardTitle className="text-3xl text-center font-bold">Create Account</CardTitle>
+          <p className="text-center text-sm text-[#D4AF37]">Join Sikkolu Specials</p>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <form onSubmit={handleRegister} className="space-y-4">
             <div>
-              <Label>Full Name*</Label>
+              <Label className="text-[#800000] font-semibold">Full Name*</Label>
               <Input 
                 placeholder="Your name"
                 value={formData.name}
                 onChange={e => setFormData({...formData, name: e.target.value})}
                 required
+                className="border-[#D4AF37] focus:border-[#800000]"
               />
             </div>
             <div>
-              <Label>Phone Number*</Label>
+              <Label className="text-[#800000] font-semibold">Phone Number*</Label>
               <Input 
                 type="tel"
                 placeholder="10-digit mobile number"
@@ -106,49 +112,57 @@ export function Register() {
                 onChange={e => setFormData({...formData, phone: e.target.value.replace(/\D/g, '')})}
                 maxLength={10}
                 required
+                className="border-[#D4AF37] focus:border-[#800000]"
               />
             </div>
             <div>
-              <Label>Email (Optional)</Label>
+              <Label className="text-[#800000] font-semibold">Email (Optional)</Label>
               <Input 
                 type="email"
                 placeholder="your@email.com"
                 value={formData.email}
                 onChange={e => setFormData({...formData, email: e.target.value})}
+                className="border-[#D4AF37] focus:border-[#800000]"
               />
             </div>
             <div>
-              <Label>Password*</Label>
+              <Label className="text-[#800000] font-semibold">Password*</Label>
               <Input 
                 type="password"
-                placeholder="Create a password"
+                placeholder="Create a password (min 6 characters)"
                 value={formData.password}
                 onChange={e => setFormData({...formData, password: e.target.value})}
                 required
                 minLength={6}
+                className="border-[#D4AF37] focus:border-[#800000]"
               />
             </div>
             <div>
-              <Label>Confirm Password*</Label>
+              <Label className="text-[#800000] font-semibold">Confirm Password*</Label>
               <Input 
                 type="password"
                 placeholder="Re-enter password"
                 value={formData.confirmPassword}
                 onChange={e => setFormData({...formData, confirmPassword: e.target.value})}
                 required
+                className="border-[#D4AF37] focus:border-[#800000]"
               />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              <UserPlus className="w-4 h-4 mr-2" />
-              {loading ? 'Creating Account...' : 'Register'}
+            <Button 
+              type="submit" 
+              className="w-full bg-[#800000] hover:bg-[#600000] text-white h-12 text-lg font-bold" 
+              disabled={loading}
+            >
+              <UserPlus className="w-5 h-5 mr-2" />
+              {loading ? 'Creating Account...' : 'Register Now'}
             </Button>
           </form>
-          <div className="mt-4 text-center">
-            <p className="text-sm text-muted-foreground">
+          <div className="mt-6 text-center">
+            <p className="text-sm text-slate-600">
               Already have an account?{' '}
               <button 
                 onClick={() => navigate('/login')} 
-                className="text-primary font-semibold hover:underline"
+                className="text-[#800000] font-bold hover:text-[#D4AF37] hover:underline"
               >
                 Login here
               </button>
